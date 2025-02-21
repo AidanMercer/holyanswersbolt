@@ -25,5 +25,5 @@ export {
   auth, 
   googleProvider, 
   signInWithPopup,
-  signOut: firebaseSignOut
+  firebaseSignOut as signOut
 }
