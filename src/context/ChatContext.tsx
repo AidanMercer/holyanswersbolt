@@ -8,6 +8,7 @@ interface ChatContextType {
   createNewSession: () => void
   addMessage: (content: string, sender: 'user' | 'ai') => void
   selectSession: (sessionId: string) => void
+  deleteSession: (sessionId: string) => void
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -15,7 +16,8 @@ const ChatContext = createContext<ChatContextType>({
   sessions: [],
   createNewSession: () => {},
   addMessage: () => {},
-  selectSession: () => {}
+  selectSession: () => {},
+  deleteSession: () => {}
 })
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,13 +67,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [sessions])
 
+  const deleteSession = useCallback((sessionId: string) => {
+    setSessions(prev => {
+      const updatedSessions = prev.filter(s => s.id !== sessionId)
+      
+      // If the deleted session was the current session, select another or create new
+      if (currentSession?.id === sessionId) {
+        if (updatedSessions.length > 0) {
+          setCurrentSession(updatedSessions[0])
+        } else {
+          createNewSession()
+        }
+      }
+      
+      return updatedSessions
+    })
+  }, [currentSession, createNewSession])
+
   return (
     <ChatContext.Provider value={{
       currentSession,
       sessions,
       createNewSession,
       addMessage,
-      selectSession
+      selectSession,
+      deleteSession
     }}>
       {children}
     </ChatContext.Provider>

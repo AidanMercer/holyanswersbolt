@@ -1,5 +1,5 @@
 import React from 'react'
-import { Moon, Sun, LogOut, MessageCircle, Plus } from 'lucide-react'
+import { Moon, Sun, LogOut, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { auth } from '../../firebase'
 import { signOut } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
@@ -12,7 +12,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
   const navigate = useNavigate()
-  const { sessions, currentSession, createNewSession, selectSession } = useChat()
+  const { sessions, currentSession, createNewSession, selectSession, deleteSession } = useChat()
 
   const handleSignOut = async () => {
     try {
@@ -38,20 +38,35 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
 
         <nav className="space-y-2 max-h-[50vh] overflow-y-auto">
           {sessions.map(session => (
-            <button 
+            <div 
               key={session.id}
-              onClick={() => selectSession(session.id)}
               className={`
-                w-full flex items-center space-x-3 p-2 rounded 
-                transition-colors text-gray-700 dark:text-gray-300
+                group w-full flex items-center justify-between 
+                rounded transition-colors text-gray-700 dark:text-gray-300
                 ${currentSession?.id === session.id 
                   ? 'bg-holy-purple-100 dark:bg-holy-purple-800' 
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'}
               `}
             >
-              <MessageCircle size={20} />
-              <span className="truncate">{session.title}</span>
-            </button>
+              <button 
+                onClick={() => selectSession(session.id)}
+                className="flex-1 flex items-center space-x-3 p-2"
+              >
+                <MessageCircle size={20} />
+                <span className="truncate">{session.title}</span>
+              </button>
+              <button 
+                onClick={() => deleteSession(session.id)}
+                className="
+                  p-2 text-gray-500 hover:text-red-500 
+                  opacity-0 group-hover:opacity-100 
+                  transition-all duration-200
+                  dark:text-gray-400 dark:hover:text-red-400
+                "
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           ))}
         </nav>
       </div>
