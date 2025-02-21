@@ -7,4 +7,7 @@ export default defineConfig({
   optimizeDeps: {
     include: ['lucide-react']
   },
+  build: {
+    outDir: 'dist', // Ensure this matches firebase.json
+  }
 })
