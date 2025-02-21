@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Header from './components/Layout/Header'
 import HeroSection from './components/HeroSection'
 import FeaturesSection from './components/FeaturesSection'
@@ -9,6 +9,7 @@ import Footer from './components/Footer'
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [mounted, setMounted] = useState(false)
+  const chatInterfaceRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark'
@@ -29,6 +30,10 @@ function App() {
     localStorage.setItem('theme', newTheme)
   }
 
+  const scrollToChatInterface = () => {
+    chatInterfaceRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <div 
       className={`
@@ -40,9 +45,14 @@ function App() {
     >
       <Header theme={theme} toggleTheme={toggleTheme} />
       <main className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
-        <HeroSection theme={theme} />
+        <HeroSection 
+          theme={theme} 
+          scrollToChatInterface={scrollToChatInterface} 
+        />
         <FeaturesSection theme={theme} />
-        <ChatInterface theme={theme} />
+        <div ref={chatInterfaceRef}>
+          <ChatInterface theme={theme} />
+        </div>
         <ChristianitySection theme={theme} />
       </main>
       <Footer theme={theme} />
