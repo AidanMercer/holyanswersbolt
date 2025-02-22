@@ -59,13 +59,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session.id === currentSession?.id 
           ? { 
               ...session, 
-              messages: sender === 'ai' && !isStreaming
-                ? [...session.messages, newMessage]
-                : sender === 'ai' && isStreaming
-                  ? session.messages.map((msg, index, arr) => 
-                      index === arr.length - 1 ? { ...msg, content } : msg
-                    )
-                  : [...session.messages, newMessage]
+              messages: sender === 'ai' && isStreaming
+                ? session.messages.map((msg, index, arr) => 
+                    index === arr.length - 1 && msg.sender === 'ai' 
+                      ? { ...msg, content } 
+                      : msg
+                  )
+                : [...session.messages, newMessage]
             }
           : session
       )
@@ -74,13 +74,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentSession(prev => 
       prev ? { 
         ...prev, 
-        messages: sender === 'ai' && !isStreaming
-          ? [...prev.messages, newMessage]
-          : sender === 'ai' && isStreaming
-            ? prev.messages.map((msg, index, arr) => 
-                index === arr.length - 1 ? { ...msg, content } : msg
-              )
-            : [...prev.messages, newMessage]
+        messages: sender === 'ai' && isStreaming
+          ? prev.messages.map((msg, index, arr) => 
+              index === arr.length - 1 && msg.sender === 'ai' 
+                ? { ...msg, content } 
+                : msg
+            )
+          : [...prev.messages, newMessage]
       } : null
     )
   }, [currentSession, createNewSession])
