@@ -21,8 +21,15 @@ const ChatContext = createContext<ChatContextType>({
 })
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null)
+  const [sessions, setSessions] = useState<ChatSession[]>([
+    {
+      id: uuidv4(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: Date.now()
+    }
+  ])
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(sessions[0])
 
   const createNewSession = useCallback(() => {
     const newSession: ChatSession = {
@@ -50,13 +57,27 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessions(prev => 
       prev.map(session => 
         session.id === currentSession?.id 
-          ? { ...session, messages: [...session.messages, newMessage] }
+          ? { 
+              ...session, 
+              messages: sender === 'ai' 
+                ? session.messages.map((msg, index, arr) => 
+                    index === arr.length - 1 ? { ...msg, content } : msg
+                  )
+                : [...session.messages, newMessage]
+            }
           : session
       )
     )
 
     setCurrentSession(prev => 
-      prev ? { ...prev, messages: [...prev.messages, newMessage] } : null
+      prev ? { 
+        ...prev, 
+        messages: sender === 'ai' 
+          ? prev.messages.map((msg, index, arr) => 
+              index === arr.length - 1 ? { ...msg, content } : msg
+            )
+          : [...prev.messages, newMessage]
+      } : null
     )
   }, [currentSession, createNewSession])
 
