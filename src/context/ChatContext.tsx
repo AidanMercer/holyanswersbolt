@@ -6,7 +6,7 @@ interface ChatContextType {
   currentSession: ChatSession | null
   sessions: ChatSession[]
   createNewSession: () => void
-  addMessage: (content: string, sender: 'user' | 'ai') => void
+  addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
 }
@@ -42,7 +42,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentSession(newSession)
   }, [sessions])
 
-  const addMessage = useCallback((content: string, sender: 'user' | 'ai') => {
+  const addMessage = useCallback((content: string, sender: 'user' | 'ai', isStreaming: boolean = false) => {
     if (!currentSession) {
       createNewSession()
     }
@@ -59,11 +59,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session.id === currentSession?.id 
           ? { 
               ...session, 
-              messages: sender === 'ai' 
-                ? session.messages.map((msg, index, arr) => 
-                    index === arr.length - 1 ? { ...msg, content } : msg
-                  )
-                : [...session.messages, newMessage]
+              messages: sender === 'ai' && !isStreaming
+                ? [...session.messages, newMessage]
+                : sender === 'ai' && isStreaming
+                  ? session.messages.map((msg, index, arr) => 
+                      index === arr.length - 1 ? { ...msg, content } : msg
+                    )
+                  : [...session.messages, newMessage]
             }
           : session
       )
@@ -72,11 +74,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentSession(prev => 
       prev ? { 
         ...prev, 
-        messages: sender === 'ai' 
-          ? prev.messages.map((msg, index, arr) => 
-              index === arr.length - 1 ? { ...msg, content } : msg
-            )
-          : [...prev.messages, newMessage]
+        messages: sender === 'ai' && !isStreaming
+          ? [...prev.messages, newMessage]
+          : sender === 'ai' && isStreaming
+            ? prev.messages.map((msg, index, arr) => 
+                index === arr.length - 1 ? { ...msg, content } : msg
+              )
+            : [...prev.messages, newMessage]
       } : null
     )
   }, [currentSession, createNewSession])

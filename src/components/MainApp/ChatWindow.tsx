@@ -40,6 +40,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       setInputMessage('')
       setIsGenerating(true)
 
+      // Add an initial AI message placeholder
+      addMessage('...', 'ai', true)
+
       // Create a new abort controller for this request
       const controller = new AbortController()
       abortControllerRef.current = controller
@@ -72,7 +75,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           aiResponse += chunk
 
           // Update the last message with streaming content
-          addMessage(aiResponse, 'ai')
+          addMessage(aiResponse, 'ai', true)
 
           await processStream()
         }
