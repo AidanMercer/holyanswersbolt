@@ -44,8 +44,8 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
                 group w-full flex items-center justify-between 
                 rounded transition-colors text-gray-700 dark:text-gray-300
                 ${currentSession?.id === session.id 
-                  ? 'bg-holy-purple-100 dark:bg-holy-purple-800' 
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-700'}
+                  ? 'bg-holy-purple-100 dark:bg-holy-purple-800 dark:text-white' 
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-white'}
               `}
             >
               <button 
@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
       <div className="space-y-2">
         <button 
           onClick={toggleTheme}
-          className="w-full flex items-center space-x-3 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          className="w-full flex items-center space-x-3 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 dark:hover:text-white"
         >
           {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           <span>Toggle Theme</span>
@@ -82,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
 
         <button 
           onClick={handleSignOut}
-          className="w-full flex items-center space-x-3 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          className="w-full flex items-center space-x-3 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 dark:hover:text-white"
         >
           <LogOut size={20} />
           <span>Sign Out</span>
