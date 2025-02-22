@@ -106,8 +106,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
             className={`
               p-3 rounded-lg max-w-[80%] relative group
               ${message.sender === 'user' 
-                ? 'bg-holy-purple-100 dark:bg-holy-purple-800 self-end ml-auto' 
-                : 'bg-gray-100 dark:bg-gray-800 self-start mr-auto'}
+                ? 'bg-holy-purple-100 dark:bg-holy-purple-800/30 dark:text-white self-end ml-auto' 
+                : 'bg-gray-100 dark:bg-gray-700/50 dark:text-gray-100 self-start mr-auto'}
+              ${message.sender === 'user' 
+                ? 'border-holy-purple-200 dark:border-holy-purple-700' 
+                : 'border-gray-200 dark:border-gray-600'}
+              border shadow-sm
             `}
           >
             <p 
@@ -123,7 +127,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
                 onClick={() => handleCopyMessage(message.content)}
                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <Copy size={16} className="text-gray-500 hover:text-gray-700" />
+                <Copy size={16} className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100" />
               </button>
             )}
           </div>
