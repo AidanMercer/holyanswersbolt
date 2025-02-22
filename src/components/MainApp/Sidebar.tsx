@@ -42,17 +42,21 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme }) => {
               key={session.id}
               className={`
                 group w-full flex items-center justify-between 
-                rounded transition-colors text-gray-700 dark:text-gray-300
+                rounded transition-colors 
                 ${currentSession?.id === session.id 
-                  ? 'bg-holy-purple-100 dark:bg-holy-purple-800 dark:text-white' 
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-white'}
+                  ? 'bg-holy-purple-100 dark:bg-holy-purple-700 text-gray-900 dark:text-gray-100' 
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}
               `}
             >
               <button 
                 onClick={() => selectSession(session.id)}
                 className="flex-1 flex items-center space-x-3 p-2"
               >
-                <MessageCircle size={20} />
+                <MessageCircle size={20} className={
+                  currentSession?.id === session.id 
+                    ? 'text-holy-purple-600 dark:text-holy-purple-300' 
+                    : 'text-gray-500 dark:text-gray-400'
+                } />
                 <span className="truncate">{session.title}</span>
               </button>
               <button 
