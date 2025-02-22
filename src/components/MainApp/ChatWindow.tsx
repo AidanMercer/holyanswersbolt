@@ -106,7 +106,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
             className={`
               p-3 rounded-lg max-w-[80%] relative group
               ${message.sender === 'user' 
-                ? 'bg-holy-purple-100 dark:bg-holy-purple-800/30 dark:text-white self-end ml-auto' 
+                ? 'bg-holy-purple-100 dark:bg-holy-purple-700/20 text-gray-900 dark:text-white self-end ml-auto' 
                 : 'bg-gray-100 dark:bg-gray-700/50 dark:text-gray-100 self-start mr-auto'}
               ${message.sender === 'user' 
                 ? 'border-holy-purple-200 dark:border-holy-purple-700' 
