@@ -1,39 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Send, Copy, Check, XCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Send, User, Bot, XCircle } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 
-interface ChatWindowProps {
-  theme: 'light' | 'dark'
-}
+const MAX_MESSAGES = 10
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
+const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [messageCount, setMessageCount] = useState(0)
   const { currentSession, addMessage } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Load message count from localStorage on mount
+  useEffect(() => {
+    const savedMessageCount = localStorage.getItem('demoMessageCount')
+    if (savedMessageCount) {
+      setMessageCount(parseInt(savedMessageCount, 10))
+    }
+  }, [])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [currentSession?.messages])
 
-  const handleStopGeneration = async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      setIsGenerating(false)
-    }
+  const handleSendMessage = useCallback(async () => {
+    // Check message limit
+    if (messageCount >= MAX_MESSAGES) return
 
-    try {
-      await fetch("https://jesusai-docker-155523642474.us-central1.run.app/stop-generation", { 
-        method: "POST" 
-      })
-    } catch (error) {
-      console.error("Error stopping generation:", error)
-    }
-  }
-
-  const handleSendMessage = async () => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
       addMessage(userInput, 'user')
@@ -41,7 +36,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       setIsGenerating(true)
 
       // Add an initial AI message placeholder
-      addMessage('...', 'ai', true)
+      addMessage('', 'ai', true)
 
       // Create a new abort controller for this request
       const controller = new AbortController()
@@ -67,15 +62,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           if (done) {
             // Finalize AI message
             addMessage(aiResponse, 'ai')
+            
+            // Update message count
+            const newMessageCount = messageCount + 2
+            setMessageCount(newMessageCount)
+            localStorage.setItem('demoMessageCount', newMessageCount.toString())
+            
             setIsGenerating(false)
             return
           }
 
           const chunk = decoder.decode(value, { stream: true })
-          aiResponse += chunk
-
-          // Update the last message with streaming content
-          addMessage(aiResponse, 'ai', true)
+          
+          // Stream characters one by one
+          for (let char of chunk) {
+            aiResponse += char
+            addMessage(aiResponse, 'ai', true)
+            
+            // Add a small delay to simulate typing
+            await new Promise(resolve => setTimeout(resolve, 20))
+          }
 
           await processStream()
         }
@@ -91,68 +97,90 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
         setIsGenerating(false)
       }
     }
+  }, [inputMessage, isGenerating, messageCount, addMessage])
+
+  // Handle Enter key press
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isGenerating) {
+      handleSendMessage()
+    }
   }
 
-  const handleCopyMessage = (message: string) => {
-    navigator.clipboard.writeText(message)
+  // Render when message limit is reached
+  if (messageCount >= MAX_MESSAGES) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white dark:bg-gray-900 p-4">
+        <div className="text-center">
+          <div className="mb-4">
+            <Lock className="mx-auto text-gray-500 dark:text-gray-400" size={48} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Demo Limit Reached
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            You've reached the maximum of {MAX_MESSAGES} messages in this demo.
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Refresh the page to start a new demo session.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {currentSession?.messages.map((message, index) => (
+        {currentSession?.messages.map((message) => (
           <div 
             key={message.id} 
-            className={`
-              p-3 rounded-lg max-w-[80%] relative group
-              ${message.sender === 'user' 
-                ? 'bg-holy-purple-100 dark:bg-holy-purple-700/20 text-gray-900 dark:text-white self-end ml-auto' 
-                : 'bg-gray-100 dark:bg-gray-700/50 dark:text-gray-100 self-start mr-auto'}
-              ${message.sender === 'user' 
-                ? 'border-holy-purple-200 dark:border-holy-purple-700' 
-                : 'border-gray-200 dark:border-gray-600'}
-              border shadow-sm
-            `}
+            className={`flex items-start space-x-3 ${
+              message.sender === 'user' ? 'justify-end' : 'justify-start'
+            }`}
           >
-            <p 
-              dangerouslySetInnerHTML={{
-                __html: message.content
-                  .replace(/\n/g, "<br>")
-                  .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-                  .replace(/\*/g, "•")
-              }}
-            />
             {message.sender === 'ai' && (
-              <button 
-                onClick={() => handleCopyMessage(message.content)}
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Copy size={16} className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100" />
-              </button>
+              <Bot className="text-holy-purple-600 dark:text-holy-purple-400" size={24} />
+            )}
+            <div 
+              className={`px-4 py-2 rounded-2xl max-w-[70%] ${
+                message.sender === 'user' 
+                  ? 'bg-holy-purple-600 text-white' 
+                  : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border dark:border-gray-600'
+              }`}
+            >
+              {message.content}
+              {message.sender === 'ai' && isGenerating && message.content === '' && (
+                <span className="animate-pulse">|</span>
+              )}
+            </div>
+            {message.sender === 'user' && (
+              <User className="text-gray-600 dark:text-gray-300" size={24} />
             )}
           </div>
         ))}
+        
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex items-center space-x-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <input 
-          type="text"
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-          placeholder="Type your message..."
-          disabled={isGenerating}
-          className="flex-1 p-2 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 disabled:opacity-50"
-        />
+      <div className="bg-white dark:bg-gray-800 p-4 border-t dark:border-gray-700 flex space-x-3">
+        <div className="flex-grow relative">
+          <input 
+            type="text" 
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Type your message..."
+            disabled={isGenerating}
+            className="w-full px-4 py-2 border dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-holy-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
+          />
+          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 dark:text-gray-400">
+            {messageCount}/{MAX_MESSAGES}
+          </div>
+        </div>
         <button 
-          onClick={isGenerating ? handleStopGeneration : handleSendMessage}
-          className={`
-            ${isGenerating 
-              ? 'bg-red-500 text-white hover:bg-red-600' 
-              : 'bg-holy-purple-600 text-white hover:bg-holy-purple-700'}
-            p-2 rounded-full transition-colors dark:bg-holy-purple-700 dark:hover:bg-holy-purple-600
-          `}
+          onClick={handleSendMessage}
+          disabled={isGenerating || !inputMessage.trim()}
+          className="bg-holy-purple-600 text-white p-3 rounded-full hover:bg-holy-purple-700 dark:bg-holy-purple-500 dark:hover:bg-holy-purple-600 transition-colors disabled:opacity-50"
         >
           {isGenerating ? <XCircle size={20} /> : <Send size={20} />}
         </button>
