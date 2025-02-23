@@ -21,12 +21,6 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
     localStorage.setItem(STORAGE_KEY, messageCount.toString())
   }, [messageCount])
 
-  // Reset functionality for demo
-  const resetDemoCount = useCallback(() => {
-    setMessageCount(0)
-    localStorage.removeItem(STORAGE_KEY)
-  }, [])
-
   const handleSendMessage = useCallback(async () => {
     // Check message limit
     if (messageCount >= MAX_MESSAGES) return
@@ -117,13 +111,8 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 You've reached the maximum of {MAX_MESSAGES} messages in this demo.
+                Please sign up to continue chatting.
               </p>
-              <button 
-                onClick={resetDemoCount}
-                className="bg-holy-purple-600 text-white px-4 py-2 rounded-lg hover:bg-holy-purple-700 transition-colors"
-              >
-                Reset Demo
-              </button>
             </div>
           ) : (
             <>
