@@ -2,14 +2,30 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Send, User, Bot, Loader2, Lock } from 'lucide-react'
 import { useChat } from '../context/ChatContext'
 
-const MAX_MESSAGES = 5
+const MAX_MESSAGES = 10
+const STORAGE_KEY = 'jesusai_demo_message_count'
 
 const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const { currentSession, addMessage } = useChat()
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
-  const [messageCount, setMessageCount] = useState(0)
+  const [messageCount, setMessageCount] = useState(() => {
+    // Initialize message count from localStorage or default to 0
+    const storedCount = localStorage.getItem(STORAGE_KEY)
+    return storedCount ? parseInt(storedCount, 10) : 0
+  })
+
+  // Update localStorage whenever message count changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, messageCount.toString())
+  }, [messageCount])
+
+  // Reset functionality for demo
+  const resetDemoCount = useCallback(() => {
+    setMessageCount(0)
+    localStorage.removeItem(STORAGE_KEY)
+  }, [])
 
   const handleSendMessage = useCallback(async () => {
     // Check message limit
@@ -45,7 +61,11 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         if (done) {
           // Finalize AI message and increment message count
           addMessage(accumulatedResponse, 'ai')
-          setMessageCount(prev => prev + 2)  // +2 for user and AI message
+          setMessageCount(prev => {
+            const newCount = prev + 2  // +2 for user and AI message
+            localStorage.setItem(STORAGE_KEY, newCount.toString())
+            return newCount
+          })
           setIsStreaming(false)
           setIsLoading(false)
           return
@@ -76,11 +96,6 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
     }
   }
 
-  // Reset message count on component mount
-  useEffect(() => {
-    setMessageCount(0)
-  }, [])
-
   return (
     <section id="chat" className="py-20 bg-white dark:bg-gray-900">
       <div className="container mx-auto px-4 max-w-4xl">
@@ -103,9 +118,12 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 You've reached the maximum of {MAX_MESSAGES} messages in this demo.
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                To continue chatting, please sign up or refresh the page.
-              </p>
+              <button 
+                onClick={resetDemoCount}
+                className="bg-holy-purple-600 text-white px-4 py-2 rounded-lg hover:bg-holy-purple-700 transition-colors"
+              >
+                Reset Demo
+              </button>
             </div>
           ) : (
             <>
