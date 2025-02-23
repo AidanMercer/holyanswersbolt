@@ -12,6 +12,11 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [currentSession?.messages])
+
   // Load message count from localStorage on mount
   useEffect(() => {
     const savedMessageCount = localStorage.getItem('demoMessageCount')
@@ -20,48 +25,48 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
     }
   }, [])
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [currentSession?.messages])
-
   const handleSendMessage = useCallback(async () => {
     // Check message limit
     if (messageCount >= MAX_MESSAGES) return
 
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
+      
+      // Add user message
       addMessage(userInput, 'user')
       setInputMessage('')
       setIsGenerating(true)
 
-      // Add an initial AI message placeholder
+      // Prepare for AI response
       addMessage('', 'ai', true)
-
-      // Create a new abort controller for this request
-      const controller = new AbortController()
-      abortControllerRef.current = controller
 
       try {
         const response = await fetch("https://jesusai-docker-155523642474.us-central1.run.app", {
           method: "POST",
           body: new URLSearchParams({ user_input: userInput }),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal: controller.signal
+          headers: { "Content-Type": "application/x-www-form-urlencoded" }
         })
 
+        // Ensure response is okay
+        if (!response.ok) {
+          throw new Error('Network response was not ok')
+        }
+
+        // Create a reader for streaming
         const reader = response.body?.getReader()
         const decoder = new TextDecoder()
-        let aiResponse = ''
+        
+        let partialResponse = ''
 
+        // Stream processing function
         const processStream = async () => {
           if (!reader) return
 
           const { done, value } = await reader.read()
           
           if (done) {
-            // Finalize AI message
-            addMessage(aiResponse, 'ai')
+            // Finalize the message when streaming is complete
+            addMessage(partialResponse, 'ai')
             
             // Update message count
             const newMessageCount = messageCount + 2
@@ -72,28 +77,25 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
             return
           }
 
+          // Decode the chunk
           const chunk = decoder.decode(value, { stream: true })
           
-          // Stream characters one by one
-          for (let char of chunk) {
-            aiResponse += char
-            addMessage(aiResponse, 'ai', true)
-            
-            // Add a small delay to simulate typing
-            await new Promise(resolve => setTimeout(resolve, 20))
-          }
+          // Accumulate the response
+          partialResponse += chunk
+          
+          // Update the message with accumulated response
+          addMessage(partialResponse, 'ai', true)
 
+          // Continue processing
           await processStream()
         }
 
+        // Start streaming
         await processStream()
+
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          console.log('Request was aborted')
-        } else {
-          console.error('Error during API call:', error)
-          addMessage('Sorry, there was an error processing your request.', 'ai')
-        }
+        console.error('Error during API call:', error)
+        addMessage('Sorry, there was an error processing your request.', 'ai')
         setIsGenerating(false)
       }
     }
