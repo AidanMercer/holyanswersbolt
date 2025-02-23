@@ -25,7 +25,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     }
 
     try {
-      await fetch("https://jesusai-docker-155523642474.us-central1.run.app/stop-generation", { 
+      await fetch("https://holyanswers-155523642474.us-central1.run.app/stop-generation", { 
         method: "POST" 
       })
     } catch (error) {
@@ -48,7 +48,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       abortControllerRef.current = controller
 
       try {
-        const response = await fetch("https://jesusai-docker-155523642474.us-central1.run.app", {
+        const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
           body: new URLSearchParams({ user_input: userInput }),
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

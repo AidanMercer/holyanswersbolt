@@ -3,7 +3,7 @@ import { Send, User, Bot, Loader2, Lock } from 'lucide-react'
 import { useChat } from '../context/ChatContext'
 
 const MAX_MESSAGES = 10
-const STORAGE_KEY = 'jesusai_demo_message_count'
+const STORAGE_KEY = 'holyanswers_demo_message_count'
 
 const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const { currentSession, addMessage } = useChat()
@@ -33,7 +33,7 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
     setIsLoading(true)
 
     try {
-      const response = await fetch("https://jesusai-docker-155523642474.us-central1.run.app", {
+      const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
         method: "POST",
         body: new URLSearchParams({ user_input: inputMessage }),
         headers: { "Content-Type": "application/x-www-form-urlencoded" }
@@ -95,7 +95,7 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Interactive AI Chat
+            Holy Answers AI Chat
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-300">
             Experience intelligent, context-aware conversations
@@ -111,7 +111,7 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 You've reached the maximum of {MAX_MESSAGES} messages in this demo.
-                Please sign up to continue chatting.
+                Please sign up to continue chatting with Holy Answers.
               </p>
             </div>
           ) : (
