@@ -26,7 +26,11 @@ const MainAppPage: React.FC = () => {
     localStorage.setItem('theme', newTheme)
   }
 
-  // Remove authentication check to allow guest access
+  // Redirect to home if no user is authenticated
+  if (!currentUser) {
+    return <Navigate to="/" replace />
+  }
+
   return (
     <ChatProvider>
       <div 
