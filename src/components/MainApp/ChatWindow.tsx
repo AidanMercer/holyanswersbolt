@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, User, Bot, XCircle } from 'lucide-react'
+import { Send, User, Bot, XCircle, Copy, Check } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 
 const MAX_MESSAGES = 10
@@ -59,11 +59,7 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         let partialResponse = ''
 
         // Stream processing function
-        const processStream = async () => {
-          if (!reader) return
-
-          const { done, value } = await reader.read()
-          
+        const processText = async ({ done, value }: { done: boolean, value?: Uint8Array }) => {
           if (done) {
             // Finalize the message when streaming is complete
             addMessage(partialResponse, 'ai')
@@ -77,21 +73,33 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
             return
           }
 
-          // Decode the chunk
-          const chunk = decoder.decode(value, { stream: true })
-          
-          // Accumulate the response
-          partialResponse += chunk
-          
-          // Update the message with accumulated response
-          addMessage(partialResponse, 'ai', true)
+          if (value) {
+            // Decode the chunk
+            const chunk = decoder.decode(value, { stream: true })
+            
+            // Accumulate the response
+            partialResponse += chunk
+            
+            // Update the message with accumulated response
+            // Apply markdown-like formatting
+            const formattedResponse = partialResponse
+              .replace(/\n/g, "<br>")
+              .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+              .replace(/\*/g, "•")
+            
+            addMessage(formattedResponse, 'ai', true)
+          }
 
           // Continue processing
-          await processStream()
+          if (reader) {
+            reader.read().then(processText)
+          }
         }
 
         // Start streaming
-        await processStream()
+        if (reader) {
+          reader.read().then(processText)
+        }
 
       } catch (error) {
         console.error('Error during API call:', error)
@@ -133,7 +141,7 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {currentSession?.messages.map((message) => (
+        {currentSession?.messages.map((message, index) => (
           <div 
             key={message.id} 
             className={`flex items-start space-x-3 ${
@@ -144,15 +152,28 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
               <Bot className="text-holy-purple-600 dark:text-holy-purple-400" size={24} />
             )}
             <div 
-              className={`px-4 py-2 rounded-2xl max-w-[70%] ${
+              className={`px-4 py-2 rounded-2xl max-w-[70%] relative ${
                 message.sender === 'user' 
                   ? 'bg-holy-purple-600 text-white' 
                   : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border dark:border-gray-600'
               }`}
             >
-              {message.content}
-              {message.sender === 'ai' && isGenerating && message.content === '' && (
-                <span className="animate-pulse">|</span>
+              <div 
+                dangerouslySetInnerHTML={{ 
+                  __html: message.content || (isGenerating && message.sender === 'ai' ? '...' : '') 
+                }} 
+              />
+              
+              {/* Copy button for AI messages */}
+              {message.sender === 'ai' && message.content && !isGenerating && (
+                <button 
+                  className="absolute top-1 right-1 text-gray-500 hover:text-gray-700"
+                  onClick={() => {
+                    navigator.clipboard.writeText(message.content)
+                  }}
+                >
+                  <Copy size={16} />
+                </button>
               )}
             </div>
             {message.sender === 'user' && (
