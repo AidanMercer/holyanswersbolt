@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, User, Bot, XCircle, Copy, Check } from 'lucide-react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Send, User, Bot, XCircle, Copy } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 
 const MAX_MESSAGES = 10
@@ -10,11 +10,15 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
   const [messageCount, setMessageCount] = useState(0)
   const { currentSession, addMessage } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Memoize the decoder to prevent unnecessary recreations
+  const decoder = useMemo(() => new TextDecoder(), [])
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [currentSession?.messages])
 
   // Load message count from localStorage on mount
@@ -52,54 +56,61 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
           throw new Error('Network response was not ok')
         }
 
+        // Safely check if body is available
+        if (!response.body) {
+          throw new Error('Response body is not available')
+        }
+
         // Create a reader for streaming
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
+        const reader = response.body.getReader()
         
         let partialResponse = ''
 
         // Stream processing function
-        const processText = async ({ done, value }: { done: boolean, value?: Uint8Array }) => {
-          if (done) {
-            // Finalize the message when streaming is complete
-            addMessage(partialResponse, 'ai')
-            
-            // Update message count
-            const newMessageCount = messageCount + 2
-            setMessageCount(newMessageCount)
-            localStorage.setItem('demoMessageCount', newMessageCount.toString())
-            
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) {
+                // Finalize the message when streaming is complete
+                addMessage(partialResponse, 'ai')
+                
+                // Update message count
+                const newMessageCount = messageCount + 2
+                setMessageCount(newMessageCount)
+                localStorage.setItem('demoMessageCount', newMessageCount.toString())
+                
+                setIsGenerating(false)
+                break
+              }
+
+              if (value) {
+                // Decode the chunk
+                const chunk = decoder.decode(value, { stream: true })
+                
+                // Accumulate the response
+                partialResponse += chunk
+                
+                // Update the message with accumulated response
+                // Apply markdown-like formatting
+                const formattedResponse = partialResponse
+                  .replace(/\n/g, "<br>")
+                  .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+                  .replace(/\*/g, "•")
+                
+                addMessage(formattedResponse, 'ai', true)
+              }
+            }
+          } catch (error) {
+            console.error('Streaming error:', error)
+            addMessage('Sorry, there was an error processing your request.', 'ai')
             setIsGenerating(false)
-            return
-          }
-
-          if (value) {
-            // Decode the chunk
-            const chunk = decoder.decode(value, { stream: true })
-            
-            // Accumulate the response
-            partialResponse += chunk
-            
-            // Update the message with accumulated response
-            // Apply markdown-like formatting
-            const formattedResponse = partialResponse
-              .replace(/\n/g, "<br>")
-              .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-              .replace(/\*/g, "•")
-            
-            addMessage(formattedResponse, 'ai', true)
-          }
-
-          // Continue processing
-          if (reader) {
-            reader.read().then(processText)
           }
         }
 
         // Start streaming
-        if (reader) {
-          reader.read().then(processText)
-        }
+        processStream()
 
       } catch (error) {
         console.error('Error during API call:', error)
@@ -107,7 +118,7 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
         setIsGenerating(false)
       }
     }
-  }, [inputMessage, isGenerating, messageCount, addMessage])
+  }, [inputMessage, isGenerating, messageCount, addMessage, decoder])
 
   // Handle Enter key press
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -122,7 +133,7 @@ const ChatWindow: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
       <div className="flex-1 flex items-center justify-center bg-white dark:bg-gray-900 p-4">
         <div className="text-center">
           <div className="mb-4">
-            <Lock className="mx-auto text-gray-500 dark:text-gray-400" size={48} />
+            <XCircle className="mx-auto text-gray-500 dark:text-gray-400" size={48} />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Demo Limit Reached
