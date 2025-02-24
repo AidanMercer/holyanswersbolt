@@ -7,6 +7,7 @@ interface ChatContextType {
   sessions: ChatSession[]
   createNewSession: () => void
   addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
+  updateStreamingMessage: (content: string) => void
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
 }
@@ -16,6 +17,7 @@ const ChatContext = createContext<ChatContextType>({
   sessions: [],
   createNewSession: () => {},
   addMessage: () => {},
+  updateStreamingMessage: () => {},
   selectSession: () => {},
   deleteSession: () => {}
 })
@@ -51,7 +53,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: uuidv4(),
       content,
       sender,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isStreaming: isStreaming
     }
 
     setSessions(prev => 
@@ -59,13 +62,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session.id === currentSession?.id 
           ? { 
               ...session, 
-              messages: sender === 'ai' && isStreaming
-                ? session.messages.map((msg, index, arr) => 
-                    index === arr.length - 1 && msg.sender === 'ai' 
-                      ? { ...msg, content } 
-                      : msg
-                  )
-                : [...session.messages, newMessage]
+              messages: [...session.messages, newMessage]
             }
           : session
       )
@@ -74,16 +71,47 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentSession(prev => 
       prev ? { 
         ...prev, 
-        messages: sender === 'ai' && isStreaming
-          ? prev.messages.map((msg, index, arr) => 
-              index === arr.length - 1 && msg.sender === 'ai' 
-                ? { ...msg, content } 
-                : msg
-            )
-          : [...prev.messages, newMessage]
+        messages: [...prev.messages, newMessage]
       } : null
     )
   }, [currentSession, createNewSession])
+
+  const updateStreamingMessage = useCallback((content: string) => {
+    setSessions(prev => 
+      prev.map(session => {
+        if (session.id === currentSession?.id) {
+          const updatedMessages = [...session.messages]
+          const lastMessageIndex = updatedMessages.length - 1
+          
+          if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
+            updatedMessages[lastMessageIndex] = {
+              ...updatedMessages[lastMessageIndex],
+              content: content
+            }
+          }
+          
+          return { ...session, messages: updatedMessages }
+        }
+        return session
+      })
+    )
+
+    setCurrentSession(prev => {
+      if (!prev) return null
+      
+      const updatedMessages = [...prev.messages]
+      const lastMessageIndex = updatedMessages.length - 1
+      
+      if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
+        updatedMessages[lastMessageIndex] = {
+          ...updatedMessages[lastMessageIndex],
+          content: content
+        }
+      }
+      
+      return { ...prev, messages: updatedMessages }
+    })
+  }, [currentSession])
 
   const selectSession = useCallback((sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId)
@@ -115,6 +143,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessions,
       createNewSession,
       addMessage,
+      updateStreamingMessage,
       selectSession,
       deleteSession
     }}>

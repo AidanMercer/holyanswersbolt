@@ -3,6 +3,7 @@ export interface ChatMessage {
   content: string
   sender: 'user' | 'ai'
   timestamp: number
+  isStreaming?: boolean
 }
 
 export interface ChatSession {

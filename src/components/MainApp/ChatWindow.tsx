@@ -10,7 +10,7 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { currentSession, addMessage } = useChat()
+  const { currentSession, addMessage, updateStreamingMessage } = useChat()
   const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -43,7 +43,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       setIsGenerating(true)
 
       // Add an initial AI message placeholder
-      addMessage('...', 'ai', true)
+      addMessage('', 'ai', true)
 
       // Create a new abort controller for this request
       const controller = new AbortController()
@@ -68,7 +68,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           
           if (done) {
             // Finalize AI message
-            addMessage(aiResponse, 'ai')
+            updateStreamingMessage(aiResponse)
             setIsGenerating(false)
             return
           }
@@ -77,7 +77,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           aiResponse += chunk
 
           // Update the last message with streaming content
-          addMessage(aiResponse, 'ai', true)
+          updateStreamingMessage(aiResponse)
 
           await processStream()
         }
