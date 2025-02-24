@@ -3,22 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  signOut as firebaseSignOut,
-  connectAuthEmulator 
+  signOut as firebaseSignOut 
 } from 'firebase/auth'
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  deleteDoc,
-  doc,
-  updateDoc,
-  orderBy,
-  connectFirestoreEmulator
-} from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: "AIzaSyBJRAaALwjg5wc-AlUp9EKl2p9KZ_6pFZE",
@@ -32,29 +18,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
-const db = getFirestore(app)
 const googleProvider = new GoogleAuthProvider()
-
-// Uncomment for local development if needed
-// if (import.meta.env.DEV) {
-//   connectAuthEmulator(auth, 'http://localhost:9099')
-//   connectFirestoreEmulator(db, 'localhost', 8080)
-// }
 
 export { 
   app, 
   auth, 
-  db,
   googleProvider, 
-  collection,
-  addDoc,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-  orderBy,
   signInWithPopup,
   firebaseSignOut as signOut
 }

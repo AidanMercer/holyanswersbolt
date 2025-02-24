@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
-import { v4 as uuidv4 } from 'uuid'
-import { ChatMessage } from '../../types/ChatTypes'
 
 interface ChatWindowProps {
   theme: 'light' | 'dark'
@@ -12,155 +10,99 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { currentSession, createNewSession } = useChat()
+  const { currentSession, addMessage, updateStreamingMessage } = useChat()
   const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-
-  // Ensure we have a session, create one if not
-  useEffect(() => {
-    if (!currentSession) {
-      createNewSession()
-    }
-  }, [currentSession, createNewSession])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [currentSession?.messages])
 
-  const handleStopGeneration = useCallback(async () => {
+  const handleStopGeneration = async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       setIsGenerating(false)
     }
 
     try {
-      await fetch("/stop-generation", { 
+      await fetch("https://holyanswers-155523642474.us-central1.run.app/stop-generation", { 
         method: "POST" 
       })
     } catch (error) {
       console.error("Error stopping generation:", error)
     }
-  }, [])
+  }
 
-  const handleSendMessage = useCallback(async () => {
-    // Ensure we have a session
-    if (!currentSession) {
-      await createNewSession()
-      return
-    }
-
+  const handleSendMessage = async () => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
-      
-      // Add user message
-      const userMessage: ChatMessage = {
-        id: uuidv4(),
-        content: userInput,
-        sender: 'user',
-        timestamp: Date.now(),
-      }
-
-      // Update current session with user message
-      const updatedSession = {
-        ...currentSession,
-        messages: [...currentSession.messages, userMessage]
-      }
-
+      addMessage(userInput, 'user')
       setInputMessage('')
       setIsGenerating(true)
 
-      try {
-        // Prepare context history for API
-        const contextHistory = currentSession.messages.slice(-5).map(msg => ({
-          sender: msg.sender,
-          content: msg.content
-        }))
+      // Add an initial AI message placeholder
+      addMessage('', 'ai', true)
 
-        const response = await fetch("/chat", {
+      // Create a new abort controller for this request
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+
+      try {
+        const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json" 
-          },
-          body: JSON.stringify({
-            user_input: userInput,
-            context_history: contextHistory
-          })
+          body: new URLSearchParams({ user_input: userInput }),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal: controller.signal
         })
 
-        // Create a new AI message to track generation
-        const aiMessage: ChatMessage = {
-          id: uuidv4(),
-          content: '',
-          sender: 'ai',
-          timestamp: Date.now(),
-          isStreaming: true
-        }
-
-        // Immediately add the AI message placeholder
-        const initialUpdatedSession = {
-          ...updatedSession,
-          messages: [...updatedSession.messages, aiMessage]
-        }
-
-        // Update the session to show the AI message is being generated
-        // This ensures the user sees something is happening
-        
-        // Use a stream reader to handle streaming response
         const reader = response.body?.getReader()
         const decoder = new TextDecoder()
-        let fullResponse = ''
+        let aiResponse = ''
 
-        while (true) {
-          const { done, value } = await reader?.read()
-          if (done) break
+        const processStream = async () => {
+          if (!reader) return
+
+          const { done, value } = await reader.read()
           
-          const chunk = decoder.decode(value)
-          fullResponse += chunk
-
-          // Update the AI message with the current response
-          const updatedAiMessage: ChatMessage = {
-            ...aiMessage,
-            content: fullResponse,
-            isStreaming: false
+          if (done) {
+            // Finalize AI message
+            updateStreamingMessage(aiResponse)
+            setIsGenerating(false)
+            return
           }
 
-          // Update the session with the latest response
-          const streamingUpdatedSession = {
-            ...initialUpdatedSession,
-            messages: initialUpdatedSession.messages.map(msg => 
-              msg.id === aiMessage.id ? updatedAiMessage : msg
-            )
-          }
+          const chunk = decoder.decode(value, { stream: true })
+          aiResponse += chunk
+
+          // Update the last message with streaming content
+          updateStreamingMessage(aiResponse)
+
+          await processStream()
         }
 
-        setIsGenerating(false)
+        await processStream()
       } catch (error) {
-        console.error('Error during API call:', error)
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          console.log('Request was aborted')
+        } else {
+          console.error('Error during API call:', error)
+          addMessage('Sorry, there was an error processing your request.', 'ai')
+        }
         setIsGenerating(false)
       }
     }
-  }, [inputMessage, isGenerating, currentSession, createNewSession])
+  }
 
-  const handleCopyMessage = useCallback((message: string) => {
+  const handleCopyMessage = (message: string) => {
     navigator.clipboard.writeText(message)
-  }, [])
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputMessage(e.target.value)
-  }, [])
-
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSendMessage()
-    }
-  }, [handleSendMessage])
+  }
 
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {currentSession?.messages.map((message) => (
+        {currentSession?.messages.map((message, index) => (
           <div 
             key={message.id} 
             className={`
@@ -224,8 +166,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
         <input 
           type="text"
           value={inputMessage}
-          onChange={handleInputChange}
-          onKeyPress={handleKeyPress}
+          onChange={(e) => setInputMessage(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
           placeholder="Type your message..."
           disabled={isGenerating}
           className="flex-1 p-2 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 disabled:opacity-50"
