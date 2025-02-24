@@ -3,6 +3,7 @@ import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
 import { v4 as uuidv4 } from 'uuid'
+import { ChatMessage } from '../../types/ChatTypes'
 
 interface ChatWindowProps {
   theme: 'light' | 'dark'
@@ -35,7 +36,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     }
 
     try {
-      await fetch("https://holyanswers-155523642474.us-central1.run.app/stop-generation", { 
+      await fetch("/stop-generation", { 
         method: "POST" 
       })
     } catch (error) {
@@ -54,10 +55,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       const userInput = inputMessage.trim()
       
       // Add user message
-      const userMessage = {
+      const userMessage: ChatMessage = {
         id: uuidv4(),
         content: userInput,
-        sender: 'user' as const,
+        sender: 'user',
         timestamp: Date.now(),
       }
 
@@ -73,35 +74,65 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
       try {
         // Prepare context history for API
         const contextHistory = currentSession.messages.slice(-5).map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
+          sender: msg.sender,
           content: msg.content
         }))
 
-        const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
+        const response = await fetch("/chat", {
           method: "POST",
+          headers: { 
+            "Content-Type": "application/json" 
+          },
           body: JSON.stringify({
             user_input: userInput,
             context_history: contextHistory
-          }),
-          headers: { 
-            "Content-Type": "application/json" 
-          }
+          })
         })
 
-        const aiResponseText = await response.text()
-
-        // Add AI message
-        const aiMessage = {
+        // Create a new AI message to track generation
+        const aiMessage: ChatMessage = {
           id: uuidv4(),
-          content: aiResponseText,
-          sender: 'ai' as const,
+          content: '',
+          sender: 'ai',
           timestamp: Date.now(),
+          isStreaming: true
         }
 
-        // Update session with AI message
-        const finalUpdatedSession = {
+        // Immediately add the AI message placeholder
+        const initialUpdatedSession = {
           ...updatedSession,
           messages: [...updatedSession.messages, aiMessage]
+        }
+
+        // Update the session to show the AI message is being generated
+        // This ensures the user sees something is happening
+        
+        // Use a stream reader to handle streaming response
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let fullResponse = ''
+
+        while (true) {
+          const { done, value } = await reader?.read()
+          if (done) break
+          
+          const chunk = decoder.decode(value)
+          fullResponse += chunk
+
+          // Update the AI message with the current response
+          const updatedAiMessage: ChatMessage = {
+            ...aiMessage,
+            content: fullResponse,
+            isStreaming: false
+          }
+
+          // Update the session with the latest response
+          const streamingUpdatedSession = {
+            ...initialUpdatedSession,
+            messages: initialUpdatedSession.messages.map(msg => 
+              msg.id === aiMessage.id ? updatedAiMessage : msg
+            )
+          }
         }
 
         setIsGenerating(false)
