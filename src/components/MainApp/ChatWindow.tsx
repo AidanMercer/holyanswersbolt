@@ -38,33 +38,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const handleSendMessage = async () => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
-      await addMessage(userInput, 'user')
+      addMessage(userInput, 'user')
       setInputMessage('')
       setIsGenerating(true)
 
       // Add an initial AI message placeholder
-      await addMessage('', 'ai', true)
+      addMessage('', 'ai', true)
 
       // Create a new abort controller for this request
       const controller = new AbortController()
       abortControllerRef.current = controller
 
       try {
-        // Prepare context history for API
-        const contextHistory = currentSession?.messages.slice(-5).map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        })) || []
-
         const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
-          body: JSON.stringify({
-            user_input: userInput,
-            context_history: contextHistory
-          }),
-          headers: { 
-            "Content-Type": "application/json" 
-          },
+          body: new URLSearchParams({ user_input: userInput }),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           signal: controller.signal
         })
 
@@ -79,7 +68,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           
           if (done) {
             // Finalize AI message
-            await updateStreamingMessage(aiResponse)
+            updateStreamingMessage(aiResponse)
             setIsGenerating(false)
             return
           }
@@ -88,7 +77,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           aiResponse += chunk
 
           // Update the last message with streaming content
-          await updateStreamingMessage(aiResponse)
+          updateStreamingMessage(aiResponse)
 
           await processStream()
         }
@@ -99,7 +88,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           console.log('Request was aborted')
         } else {
           console.error('Error during API call:', error)
-          await addMessage('Sorry, there was an error processing your request.', 'ai')
+          addMessage('Sorry, there was an error processing your request.', 'ai')
         }
         setIsGenerating(false)
       }

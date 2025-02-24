@@ -1,29 +1,13 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react'
+import React, { createContext, useState, useContext, useCallback } from 'react'
+import { ChatSession, ChatMessage } from '../types/ChatTypes'
 import { v4 as uuidv4 } from 'uuid'
-import { handleChatRequest } from '../server/index'
-import { useAuth } from './AuthContext'
-
-interface ChatMessage {
-  id: string
-  content: string
-  sender: 'user' | 'ai'
-  timestamp: number
-  isStreaming?: boolean
-}
-
-interface ChatSession {
-  id: string
-  title: string
-  messages: ChatMessage[]
-  createdAt: number
-  userId: string
-}
 
 interface ChatContextType {
   currentSession: ChatSession | null
   sessions: ChatSession[]
   createNewSession: () => void
-  sendMessage: (content: string) => Promise<void>
+  addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
+  updateStreamingMessage: (content: string) => void
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
 }
@@ -32,101 +16,102 @@ const ChatContext = createContext<ChatContextType>({
   currentSession: null,
   sessions: [],
   createNewSession: () => {},
-  sendMessage: async () => {},
+  addMessage: () => {},
+  updateStreamingMessage: () => {},
   selectSession: () => {},
   deleteSession: () => {}
 })
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null)
-  const { currentUser } = useAuth()
+  const [sessions, setSessions] = useState<ChatSession[]>([
+    {
+      id: uuidv4(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: Date.now()
+    }
+  ])
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(sessions[0])
 
   const createNewSession = useCallback(() => {
-    if (!currentUser) return
-
     const newSession: ChatSession = {
       id: uuidv4(),
-      title: `New Bible Chat ${sessions.length + 1}`,
+      title: `New Chat ${sessions.length + 1}`,
       messages: [],
-      createdAt: Date.now(),
-      userId: currentUser.uid
+      createdAt: Date.now()
+    }
+    setSessions(prev => [...prev, newSession])
+    setCurrentSession(newSession)
+  }, [sessions])
+
+  const addMessage = useCallback((content: string, sender: 'user' | 'ai', isStreaming: boolean = false) => {
+    if (!currentSession) {
+      createNewSession()
     }
 
-    setSessions(prev => [newSession, ...prev])
-    setCurrentSession(newSession)
-  }, [sessions, currentUser])
-
-  const sendMessage = useCallback(async (content: string) => {
-    if (!currentSession || !currentUser) return
-
-    // Add user message
-    const userMessage: ChatMessage = {
+    const newMessage: ChatMessage = {
       id: uuidv4(),
       content,
-      sender: 'user',
-      timestamp: Date.now()
+      sender,
+      timestamp: Date.now(),
+      isStreaming: isStreaming
     }
 
-    // Update session with user message
-    const updatedSession = {
-      ...currentSession,
-      messages: [...currentSession.messages, userMessage]
-    }
-
-    setCurrentSession(updatedSession)
     setSessions(prev => 
       prev.map(session => 
-        session.id === currentSession.id ? updatedSession : session
+        session.id === currentSession?.id 
+          ? { 
+              ...session, 
+              messages: [...session.messages, newMessage]
+            }
+          : session
       )
     )
 
-    try {
-      // Send message to Genkit AI
-      const response = await handleChatRequest(currentUser.uid, content)
+    setCurrentSession(prev => 
+      prev ? { 
+        ...prev, 
+        messages: [...prev.messages, newMessage]
+      } : null
+    )
+  }, [currentSession, createNewSession])
 
-      // Add AI response
-      const aiMessage: ChatMessage = {
-        id: uuidv4(),
-        content: response.text || 'No response generated.',
-        sender: 'ai',
-        timestamp: Date.now()
-      }
+  const updateStreamingMessage = useCallback((content: string) => {
+    setSessions(prev => 
+      prev.map(session => {
+        if (session.id === currentSession?.id) {
+          const updatedMessages = [...session.messages]
+          const lastMessageIndex = updatedMessages.length - 1
+          
+          if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
+            updatedMessages[lastMessageIndex] = {
+              ...updatedMessages[lastMessageIndex],
+              content: content
+            }
+          }
+          
+          return { ...session, messages: updatedMessages }
+        }
+        return session
+      })
+    )
 
-      const finalSession = {
-        ...updatedSession,
-        messages: [...updatedSession.messages, aiMessage]
-      }
-
-      setCurrentSession(finalSession)
-      setSessions(prev => 
-        prev.map(session => 
-          session.id === currentSession.id ? finalSession : session
-        )
-      )
-    } catch (error) {
-      console.error('Error sending message:', error)
+    setCurrentSession(prev => {
+      if (!prev) return null
       
-      const errorMessage: ChatMessage = {
-        id: uuidv4(),
-        content: 'Sorry, there was an error processing your request.',
-        sender: 'ai',
-        timestamp: Date.now()
+      const updatedMessages = [...prev.messages]
+      const lastMessageIndex = updatedMessages.length - 1
+      
+      if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
+        updatedMessages[lastMessageIndex] = {
+          ...updatedMessages[lastMessageIndex],
+          content: content
+        }
       }
-
-      const finalSession = {
-        ...updatedSession,
-        messages: [...updatedSession.messages, errorMessage]
-      }
-
-      setCurrentSession(finalSession)
-      setSessions(prev => 
-        prev.map(session => 
-          session.id === currentSession.id ? finalSession : session
-        )
-      )
-    }
-  }, [currentSession, currentUser])
+      
+      return { ...prev, messages: updatedMessages }
+    })
+  }, [currentSession])
 
   const selectSession = useCallback((sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId)
@@ -139,27 +124,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessions(prev => {
       const updatedSessions = prev.filter(s => s.id !== sessionId)
       
+      // If the deleted session was the current session, select another or create new
       if (currentSession?.id === sessionId) {
-        setCurrentSession(updatedSessions.length > 0 ? updatedSessions[0] : null)
+        if (updatedSessions.length > 0) {
+          setCurrentSession(updatedSessions[0])
+        } else {
+          createNewSession()
+        }
       }
       
       return updatedSessions
     })
-  }, [currentSession])
-
-  // Initialize first session on user login
-  useEffect(() => {
-    if (currentUser && sessions.length === 0) {
-      createNewSession()
-    }
-  }, [currentUser, createNewSession, sessions.length])
+  }, [currentSession, createNewSession])
 
   return (
     <ChatContext.Provider value={{
       currentSession,
       sessions,
       createNewSession,
-      sendMessage,
+      addMessage,
+      updateStreamingMessage,
       selectSession,
       deleteSession
     }}>
