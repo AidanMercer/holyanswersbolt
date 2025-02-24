@@ -9,15 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@genkit-ai/core": "^0.5.0",
-    "@genkit-ai/dotenv": "^0.5.0",
-    "@genkit-ai/firebase": "^0.5.0",
-    "@genkit-ai/gemini": "^0.5.0",
+    "@genkit-ai/firebase": "^1.0.5",
+    "@genkit-ai/googleai": "^1.0.5",
     "@google/generative-ai": "^0.2.1",
+    "dotenv": "^16.4.7",
     "firebase": "^10.7.1",
+    "genkit": "^1.0.5",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

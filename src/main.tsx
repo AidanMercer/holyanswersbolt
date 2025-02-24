@@ -6,7 +6,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ChatProvider } from './context/ChatContext'
 import { initializeApp } from 'firebase/app'
 import { initGenkit } from '@genkit-ai/core'
-import './genkit.config'
+import '../genkit.config'
 
 // Firebase configuration
 const firebaseConfig = {
