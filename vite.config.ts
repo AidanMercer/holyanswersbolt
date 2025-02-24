@@ -13,6 +13,11 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['firebase/auth']
+    include: ['firebase/auth', 'uuid']
+  },
+  build: {
+    rollupOptions: {
+      external: []
+    }
   }
 })
