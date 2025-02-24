@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Copy, Check, XCircle } from 'lucide-react'
+import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
+import { useAuth } from '../../context/AuthContext'
 
 interface ChatWindowProps {
   theme: 'light' | 'dark'
@@ -10,6 +11,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const { currentSession, addMessage } = useChat()
+  const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -104,31 +106,56 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           <div 
             key={message.id} 
             className={`
-              p-3 rounded-lg max-w-[80%] relative group
-              ${message.sender === 'user' 
-                ? 'bg-holy-purple-100 dark:bg-holy-purple-700/20 text-gray-900 dark:text-white self-end ml-auto' 
-                : 'bg-gray-100 dark:bg-gray-700/50 dark:text-gray-100 self-start mr-auto'}
-              ${message.sender === 'user' 
-                ? 'border-holy-purple-200 dark:border-holy-purple-700' 
-                : 'border-gray-200 dark:border-gray-600'}
-              border shadow-sm
+              flex items-start space-x-3 
+              ${message.sender === 'user' ? 'justify-end' : 'justify-start'}
             `}
           >
-            <p 
-              dangerouslySetInnerHTML={{
-                __html: message.content
-                  .replace(/\n/g, "<br>")
-                  .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-                  .replace(/\*/g, "•")
-              }}
-            />
             {message.sender === 'ai' && (
-              <button 
-                onClick={() => handleCopyMessage(message.content)}
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Copy size={16} className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100" />
-              </button>
+              <div className="w-10 h-10 bg-holy-purple-500 text-white rounded-full flex items-center justify-center">
+                <Bot size={24} />
+              </div>
+            )}
+            <div 
+              className={`
+                p-3 rounded-lg max-w-[80%] relative group
+                ${message.sender === 'user' 
+                  ? 'bg-holy-purple-100 dark:bg-holy-purple-700/20 text-gray-900 dark:text-white' 
+                  : 'bg-gray-100 dark:bg-gray-700/50 dark:text-gray-100'}
+                ${message.sender === 'user' 
+                  ? 'border-holy-purple-200 dark:border-holy-purple-700' 
+                  : 'border-gray-200 dark:border-gray-600'}
+                border shadow-sm
+              `}
+            >
+              <p 
+                dangerouslySetInnerHTML={{
+                  __html: message.content
+                    .replace(/\n/g, "<br>")
+                    .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+                    .replace(/\*/g, "•")
+                }}
+              />
+              {message.sender === 'ai' && (
+                <button 
+                  onClick={() => handleCopyMessage(message.content)}
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Copy size={16} className="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100" />
+                </button>
+              )}
+            </div>
+            {message.sender === 'user' && (
+              <div className="w-10 h-10 bg-holy-purple-600 text-white rounded-full flex items-center justify-center">
+                {currentUser?.photoURL ? (
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt="User" 
+                    className="w-full h-full rounded-full object-cover" 
+                  />
+                ) : (
+                  <User size={24} />
+                )}
+              </div>
             )}
           </div>
         ))}
