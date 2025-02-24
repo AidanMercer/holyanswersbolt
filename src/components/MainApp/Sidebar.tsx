@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Plus, Trash2, MessageCircle } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
@@ -14,14 +14,26 @@ const Sidebar: React.FC = () => {
   const { currentUser } = useAuth()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
-  const handleDeleteSession = (sessionId: string) => {
+  const handleDeleteSession = useCallback((sessionId: string) => {
     if (confirmDelete === sessionId) {
       deleteSession(sessionId)
       setConfirmDelete(null)
     } else {
       setConfirmDelete(sessionId)
     }
-  }
+  }, [confirmDelete, deleteSession])
+
+  const handleSelectSession = useCallback((sessionId: string) => {
+    if (selectSession) {
+      selectSession(sessionId)
+    }
+  }, [selectSession])
+
+  const handleCreateNewSession = useCallback(() => {
+    if (createNewSession) {
+      createNewSession()
+    }
+  }, [createNewSession])
 
   if (!currentUser) return null
 
@@ -32,7 +44,7 @@ const Sidebar: React.FC = () => {
           Chat History
         </h2>
         <button 
-          onClick={() => createNewSession()}
+          onClick={handleCreateNewSession}
           className="text-holy-purple-600 hover:text-holy-purple-700 dark:text-holy-purple-400"
         >
           <Plus size={24} />
@@ -49,7 +61,7 @@ const Sidebar: React.FC = () => {
                 ? 'bg-holy-purple-100 dark:bg-holy-purple-800/50' 
                 : 'hover:bg-gray-200 dark:hover:bg-gray-700'}
             `}
-            onClick={() => selectSession(session.id)}
+            onClick={() => handleSelectSession(session.id)}
           >
             <div className="flex items-center space-x-2">
               <MessageCircle 

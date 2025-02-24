@@ -11,7 +11,9 @@ import {
   query, 
   where, 
   getDocs, 
-  orderBy 
+  orderBy,
+  doc,
+  getDoc
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
@@ -23,6 +25,8 @@ const ChatContext = createContext<{
   currentSession: ChatSession | null;
   createNewSession: () => Promise<ChatSession | null>;
   loadSessions: () => Promise<void>;
+  selectSession: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
   setCurrentSession: React.Dispatch<React.SetStateAction<ChatSession | null>>;
 } | undefined>(undefined)
 
@@ -68,6 +72,71 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser])
 
+  const selectSession = useCallback(async (sessionId: string) => {
+    if (!currentUser) {
+      console.error('No authenticated user')
+      return
+    }
+
+    try {
+      // Find the session in the existing sessions
+      const selectedSession = sessions.find(session => session.id === sessionId)
+      
+      if (selectedSession) {
+        setCurrentSession(selectedSession)
+        return
+      }
+
+      // If not found, fetch from Firestore
+      const sessionDocRef = doc(db, 'chatSessions', sessionId)
+      const sessionDoc = await getDoc(sessionDocRef)
+
+      if (sessionDoc.exists()) {
+        const sessionData = {
+          id: sessionDoc.id,
+          ...sessionDoc.data()
+        } as ChatSession
+
+        setCurrentSession(sessionData)
+      } else {
+        console.error('No such session exists')
+      }
+    } catch (error) {
+      console.error('Error selecting session:', error)
+      alert('Failed to select chat session. Please try again.')
+    }
+  }, [sessions, currentUser])
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    if (!currentUser) {
+      console.error('No authenticated user')
+      return
+    }
+
+    try {
+      // Remove from Firestore
+      const sessionDocRef = doc(db, 'chatSessions', sessionId)
+      await sessionDocRef.delete()
+
+      // Update local state
+      const updatedSessions = sessions.filter(session => session.id !== sessionId)
+      setSessions(updatedSessions)
+      sessionsRef.current = updatedSessions
+
+      // If the deleted session was the current session, select another or create new
+      if (currentSession?.id === sessionId) {
+        if (updatedSessions.length > 0) {
+          setCurrentSession(updatedSessions[0])
+        } else {
+          await createNewSession()
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error)
+      alert('Failed to delete chat session. Please try again.')
+    }
+  }, [sessions, currentSession, currentUser, createNewSession])
+
   const loadSessions = useCallback(async () => {
     if (!currentUser) {
       console.error('No authenticated user')
@@ -108,6 +177,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentSession,
     createNewSession,
     loadSessions,
+    selectSession,
+    deleteSession,
     setCurrentSession
   }
 
