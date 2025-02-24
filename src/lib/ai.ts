@@ -1,35 +1,62 @@
-import { generate } from '@genkit-ai/core';
-import { googleAI } from '@genkit-ai/googleai';
-import { z } from 'zod';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Improved async response generation with error handling
-export async function generateChatResponse(prompt: string, context?: any) {
+// Ensure you have a valid API key from Google AI Studio
+const API_KEY = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || ''
+
+// Initialize the Google AI client
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+// Main chat generation function
+export async function generateChatResponse(prompt: string) {
+  if (!API_KEY) {
+    throw new Error('Google GenAI API Key is missing. Please set VITE_GOOGLE_GENAI_API_KEY in your environment.')
+  }
+
   try {
-    // Simulated AI response generation
-    return { 
-      response: `Processed response for: ${prompt}`, 
-      tone: 'friendly',
-      references: []
+    // Use the Gemini Pro model for text generation
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+    // Generate the response
+    const result = await model.generateContent(
+      `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`
+    );
+
+    const response = result.response.text();
+
+    return {
+      response: response,
+      tone: 'compassionate',
+      references: ['Biblical perspective', 'Christian wisdom']
     };
   } catch (error) {
-    console.error('Error in generateChatResponse:', error);
-    return { 
-      response: 'Sorry, I could not generate a response at this time.', 
+    console.error('Google GenAI Error:', error);
+    return {
+      response: 'I apologize, but I encountered an issue processing your request. Could you please rephrase your question?',
       tone: 'apologetic',
       references: []
     };
   }
 }
 
-export async function generateStreamedResponse(prompt: string, context?: any) {
+// Streaming response generation
+export async function generateStreamedResponse(prompt: string) {
+  if (!API_KEY) {
+    throw new Error('Google GenAI API Key is missing. Please set VITE_GOOGLE_GENAI_API_KEY in your environment.')
+  }
+
   try {
-    // Simulate a streamed response
-    const completeResponse = await generateChatResponse(prompt, context);
-    
-    // Create a custom async iterator
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+    // Generate the response
+    const result = await model.generateContent(
+      `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`
+    );
+
+    const response = result.response.text();
+
+    // Create a custom async iterator for streaming
     const stream = (async function* () {
-      // Simulate streaming by breaking the response into chunks
-      const words = completeResponse.response.split(' ');
+      const words = response.split(' ');
       let currentChunk = '';
       
       for (const word of words) {
@@ -46,22 +73,22 @@ export async function generateStreamedResponse(prompt: string, context?: any) {
     })();
 
     return {
-      completeResponse: { output: completeResponse },
+      completeResponse: { output: { response } },
       stream
     };
   } catch (error) {
-    console.error('Error in generateStreamedResponse:', error);
+    console.error('Google GenAI Streaming Error:', error);
     
     return {
       completeResponse: { 
         output: { 
-          response: 'Sorry, I could not generate a response at this time.' 
+          response: 'I apologize, but I encountered an issue processing your request.' 
         } 
       },
       stream: (async function* () {
         yield { 
           output: { 
-            response: 'Sorry, I could not generate a response at this time.' 
+            response: 'I apologize, but I encountered an issue processing your request.' 
           } 
         };
       })()

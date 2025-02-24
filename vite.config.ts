@@ -1,13 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import dotenv from 'dotenv'
 
-// https://vitejs.dev/config/
+dotenv.config()
+
 export default defineConfig({
   plugins: [react()],
-  optimizeDeps: {
-    include: ['lucide-react']
-  },
-  build: {
-    outDir: 'dist', // Ensure this matches firebase.json
+  define: {
+    'import.meta.env.VITE_GOOGLE_GENAI_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_GENAI_API_KEY)
   }
 })
