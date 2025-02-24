@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [
     googleAI({
       apiVersion: 'v1beta',
-      apiKey: process.env.GOOGLE_AI_API_KEY
+      apiKey: "AIzaSyA_EKbVSEysMq6-hr0Fq90EadQpoI_z7VU"
     })
   ],
   defaultModel: 'googleai/gemini-1.5-flash-latest'
