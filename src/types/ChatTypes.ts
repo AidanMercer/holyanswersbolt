@@ -11,4 +11,5 @@ export interface ChatSession {
   title: string
   messages: ChatMessage[]
   createdAt: number
+  userId: string
 }
