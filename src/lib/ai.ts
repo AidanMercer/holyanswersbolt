@@ -1,83 +1,48 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generate, generateStream } from 'genkit';
+import { z } from 'zod';
 
-// Ensure you have a valid API key from Google AI Studio
-const API_KEY = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || ''
+// Define a schema for Christian AI responses
+const ChristianResponseSchema = z.object({
+  response: z.string(),
+  biblicalReference: z.string().optional(),
+  tone: z.enum(['compassionate', 'encouraging', 'instructive']).optional()
+});
 
-// Initialize the Google AI client
-const genAI = new GoogleGenerativeAI(API_KEY);
-
-// Main chat generation function
+// Main chat generation function using Genkit
 export async function generateChatResponse(prompt: string) {
-  if (!API_KEY) {
-    throw new Error('Google GenAI API Key is missing. Please set VITE_GOOGLE_GENAI_API_KEY in your environment.')
-  }
-
   try {
-    // Use the Gemini Pro model for text generation
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const { output } = await generate({
+      prompt: `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`,
+      output: { schema: ChristianResponseSchema }
+    });
 
-    // Generate the response
-    const result = await model.generateContent(
-      `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`
-    );
-
-    const response = result.response.text();
-
-    return {
-      response: response,
-      tone: 'compassionate',
-      references: ['Biblical perspective', 'Christian wisdom']
+    return output || {
+      response: 'I apologize, but I could not generate a response at this time.',
+      tone: 'apologetic'
     };
   } catch (error) {
-    console.error('Google GenAI Error:', error);
+    console.error('Genkit AI Error:', error);
     return {
-      response: 'I apologize, but I encountered an issue processing your request. Could you please rephrase your question?',
-      tone: 'apologetic',
-      references: []
+      response: 'I apologize, but I encountered an issue processing your request.',
+      tone: 'apologetic'
     };
   }
 }
 
 // Streaming response generation
 export async function generateStreamedResponse(prompt: string) {
-  if (!API_KEY) {
-    throw new Error('Google GenAI API Key is missing. Please set VITE_GOOGLE_GENAI_API_KEY in your environment.')
-  }
-
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-    // Generate the response
-    const result = await model.generateContent(
-      `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`
-    );
-
-    const response = result.response.text();
-
-    // Create a custom async iterator for streaming
-    const stream = (async function* () {
-      const words = response.split(' ');
-      let currentChunk = '';
-      
-      for (const word of words) {
-        currentChunk += word + ' ';
-        yield { 
-          output: { 
-            response: currentChunk.trim() 
-          } 
-        };
-        
-        // Simulate streaming delay
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-    })();
+    const { response, stream } = await generateStream({
+      prompt: `You are a Christian AI assistant. Provide a compassionate, biblically-grounded response to the following query: ${prompt}`,
+      output: { schema: ChristianResponseSchema }
+    });
 
     return {
-      completeResponse: { output: { response } },
+      completeResponse: await response,
       stream
     };
   } catch (error) {
-    console.error('Google GenAI Streaming Error:', error);
+    console.error('Genkit AI Streaming Error:', error);
     
     return {
       completeResponse: { 
