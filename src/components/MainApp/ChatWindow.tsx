@@ -45,9 +45,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           }
         }
 
-        // Finalize the message
+        // Finalize the message and mark as not streaming
         if (completeResponse.output) {
-          updateStreamingMessage(completeResponse.output.response)
+          updateStreamingMessage(completeResponse.output.response, false)
         }
       } catch (error) {
         console.error('Error generating response:', error)
