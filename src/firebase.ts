@@ -3,7 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  signOut as firebaseSignOut 
+  signOut as firebaseSignOut,
+  connectAuthEmulator 
 } from 'firebase/auth'
 import { 
   getFirestore, 
@@ -15,7 +16,8 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  orderBy
+  orderBy,
+  connectFirestoreEmulator
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -32,6 +34,12 @@ const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const db = getFirestore(app)
 const googleProvider = new GoogleAuthProvider()
+
+// Uncomment for local development if needed
+// if (import.meta.env.DEV) {
+//   connectAuthEmulator(auth, 'http://localhost:9099')
+//   connectFirestoreEmulator(db, 'localhost', 8080)
+// }
 
 export { 
   app, 

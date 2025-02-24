@@ -1,42 +1,32 @@
-import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react'
+import React, { 
+  createContext, 
+  useState, 
+  useContext, 
+  useCallback, 
+  useRef 
+} from 'react'
 import { 
-  db, 
   collection, 
   addDoc, 
   query, 
   where, 
   getDocs, 
-  deleteDoc, 
-  doc, 
-  updateDoc,
-  orderBy
-} from '../firebase'
-import { ChatSession, ChatMessage } from '../types/ChatTypes'
-import { v4 as uuidv4 } from 'uuid'
+  orderBy 
+} from 'firebase/firestore'
+import { db } from '../firebase'
 import { useAuth } from './AuthContext'
+import { ChatSession } from '../types/ChatTypes'
 
-interface ChatContextType {
-  currentSession: ChatSession | null
-  sessions: ChatSession[]
-  createNewSession: () => Promise<ChatSession | null>
-  addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
-  updateStreamingMessage: (content: string) => void
-  selectSession: (sessionId: string) => void
-  deleteSession: (sessionId: string) => void
-  loadSessions: () => Promise<void>
-}
+// Create the context
+const ChatContext = createContext<{
+  sessions: ChatSession[];
+  currentSession: ChatSession | null;
+  createNewSession: () => Promise<ChatSession | null>;
+  loadSessions: () => Promise<void>;
+  setCurrentSession: React.Dispatch<React.SetStateAction<ChatSession | null>>;
+} | undefined>(undefined)
 
-const ChatContext = createContext<ChatContextType>({
-  currentSession: null,
-  sessions: [],
-  createNewSession: async () => null,
-  addMessage: () => {},
-  updateStreamingMessage: () => {},
-  selectSession: () => {},
-  deleteSession: () => {},
-  loadSessions: async () => {}
-})
-
+// Provider component
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null)
@@ -44,7 +34,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sessionsRef = useRef<ChatSession[]>([])
 
   const createNewSession = useCallback(async () => {
-    if (!currentUser) return null
+    if (!currentUser) {
+      console.error('No authenticated user')
+      return null
+    }
 
     const newSession: Omit<ChatSession, 'id'> = {
       title: `New Chat ${sessionsRef.current.length + 1}`,
@@ -70,12 +63,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return fullNewSession
     } catch (error) {
       console.error('Error creating new session:', error)
+      alert('Failed to create a new chat session. Please check your authentication.')
       return null
     }
   }, [currentUser])
 
   const loadSessions = useCallback(async () => {
-    if (!currentUser) return
+    if (!currentUser) {
+      console.error('No authenticated user')
+      return
+    }
 
     try {
       const q = query(
@@ -101,144 +98,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error loading sessions:', error)
+      alert('Failed to load chat sessions. Please check your authentication.')
     }
   }, [currentUser, createNewSession])
 
-  useEffect(() => {
-    if (currentUser) {
-      loadSessions()
-    }
-  }, [currentUser, loadSessions])
-
-  const addMessage = useCallback(async (content: string, sender: 'user' | 'ai', isStreaming: boolean = false) => {
-    if (!currentSession || !currentUser) return
-
-    const newMessage: ChatMessage = {
-      id: uuidv4(),
-      content,
-      sender,
-      timestamp: Date.now(),
-      isStreaming: isStreaming
-    }
-
-    try {
-      // Update the session in Firestore
-      await updateDoc(doc(db, 'chatSessions', currentSession.id), {
-        messages: [...(currentSession.messages || []), newMessage]
-      })
-
-      // Update local state
-      setSessions(prev => 
-        prev.map(session => 
-          session.id === currentSession.id 
-            ? { 
-                ...session, 
-                messages: [...(session.messages || []), newMessage]
-              }
-            : session
-        )
-      )
-
-      setCurrentSession(prev => 
-        prev ? { 
-          ...prev, 
-          messages: [...(prev.messages || []), newMessage]
-        } : null
-      )
-    } catch (error) {
-      console.error('Error adding message:', error)
-    }
-  }, [currentSession, currentUser])
-
-  const updateStreamingMessage = useCallback(async (content: string) => {
-    if (!currentSession || !currentUser) return
-
-    try {
-      // Get the current messages
-      const currentMessages = currentSession.messages || []
-      
-      // If there are messages and the last message is from AI
-      if (currentMessages.length > 0 && currentMessages[currentMessages.length - 1].sender === 'ai') {
-        // Create a copy of messages and update the last message
-        const updatedMessages = [...currentMessages]
-        updatedMessages[updatedMessages.length - 1] = {
-          ...updatedMessages[updatedMessages.length - 1],
-          content: content,
-          isStreaming: content.length > 0
-        }
-
-        // Update Firestore
-        await updateDoc(doc(db, 'chatSessions', currentSession.id), {
-          messages: updatedMessages
-        })
-
-        // Update local state
-        setSessions(prev => 
-          prev.map(session => 
-            session.id === currentSession.id 
-              ? { ...session, messages: updatedMessages }
-              : session
-          )
-        )
-
-        setCurrentSession(prev => 
-          prev ? { ...prev, messages: updatedMessages } : null
-        )
-      }
-    } catch (error) {
-      console.error('Error updating streaming message:', error)
-    }
-  }, [currentSession, currentUser])
-
-  const selectSession = useCallback(async (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId)
-    if (session) {
-      setCurrentSession(session)
-    }
-  }, [sessions])
-
-  const deleteSession = useCallback(async (sessionId: string) => {
-    if (!currentUser) return
-
-    try {
-      // Delete from Firestore
-      await deleteDoc(doc(db, 'chatSessions', sessionId))
-
-      // Update local state
-      setSessions(prev => {
-        const updatedSessions = prev.filter(s => s.id !== sessionId)
-        sessionsRef.current = updatedSessions
-        
-        // If the deleted session was the current session, select another or create new
-        if (currentSession?.id === sessionId) {
-          if (updatedSessions.length > 0) {
-            setCurrentSession(updatedSessions[0])
-          } else {
-            createNewSession()
-          }
-        }
-        
-        return updatedSessions
-      })
-    } catch (error) {
-      console.error('Error deleting session:', error)
-    }
-  }, [currentSession, createNewSession, currentUser])
+  // Provide the context value
+  const contextValue = {
+    sessions,
+    currentSession,
+    createNewSession,
+    loadSessions,
+    setCurrentSession
+  }
 
   return (
-    <ChatContext.Provider value={{
-      currentSession,
-      sessions,
-      createNewSession,
-      addMessage,
-      updateStreamingMessage,
-      selectSession,
-      deleteSession,
-      loadSessions
-    }}>
+    <ChatContext.Provider value={contextValue}>
       {children}
     </ChatContext.Provider>
   )
 }
 
-export const useChat = () => useContext(ChatContext)
+// Custom hook to use the chat context
+export const useChat = () => {
+  const context = useContext(ChatContext)
+  if (context === undefined) {
+    throw new Error('useChat must be used within a ChatProvider')
+  }
+  return context
+}
