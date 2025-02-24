@@ -62,7 +62,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     navigator.clipboard.writeText(message)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
@@ -134,4 +134,4 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   )
 }
 
-export default ChatWindow  // Add this default export
+export default ChatWindow
