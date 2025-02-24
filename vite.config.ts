@@ -5,5 +5,10 @@ export default defineConfig({
   plugins: [react()],
   define: {
     'process.env': process.env
+  },
+  resolve: {
+    alias: {
+      'react-router-dom': 'react-router-dom'
+    }
   }
 })
