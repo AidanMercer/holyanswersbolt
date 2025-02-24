@@ -8,7 +8,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      'react-router-dom': 'react-router-dom'
+      'react-router-dom': 'react-router-dom',
+      'firebase/auth': 'firebase/auth'
     }
+  },
+  optimizeDeps: {
+    include: ['firebase/auth']
   }
 })
