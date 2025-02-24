@@ -135,16 +135,6 @@ const ChatInterface: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
                     )}
                   </div>
                 ))}
-                
-                {isGenerating && (
-                  <div className="flex justify-start items-center space-x-3">
-                    <Bot className="text-holy-purple-600 dark:text-holy-purple-400" size={24} />
-                    <div className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-2xl">
-                      <Loader2 className="animate-spin" size={20} />
-                      <span className="text-gray-600 dark:text-gray-300">Thinking...</span>
-                    </div>
-                  </div>
-                )}
               </div>
               
               <div className="bg-white dark:bg-gray-800 p-4 border-t dark:border-gray-700 flex space-x-3">

@@ -2,4 +2,3 @@ node_modules
 vite.config.ts
 genkit.config.ts
 .env
-.env
