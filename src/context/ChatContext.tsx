@@ -1,6 +1,18 @@
-import React, { createContext, useState, useContext, useCallback } from 'react'
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react'
 import { ChatSession, ChatMessage } from '../types/ChatTypes'
 import { v4 as uuidv4 } from 'uuid'
+import { 
+  db, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDocs, 
+  query, 
+  where,
+  deleteDoc,
+  orderBy
+} from '../firebase'
+import { useAuth } from './AuthContext'
 
 interface ChatContextType {
   currentSession: ChatSession | null
@@ -10,6 +22,8 @@ interface ChatContextType {
   updateStreamingMessage: (content: string) => void
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
+  saveCurrentSession: () => Promise<void>
+  loadUserSessions: () => Promise<void>
 }
 
 const ChatContext = createContext<ChatContextType>({
@@ -19,19 +33,25 @@ const ChatContext = createContext<ChatContextType>({
   addMessage: () => {},
   updateStreamingMessage: () => {},
   selectSession: () => {},
-  deleteSession: () => {}
+  deleteSession: () => {},
+  saveCurrentSession: async () => {},
+  loadUserSessions: async () => {}
 })
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    {
-      id: uuidv4(),
-      title: 'New Chat',
-      messages: [],
-      createdAt: Date.now()
+  const { currentUser } = useAuth()
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null)
+
+  // Load user sessions on mount or user change
+  useEffect(() => {
+    if (currentUser) {
+      loadUserSessions()
+    } else {
+      setSessions([])
+      setCurrentSession(null)
     }
-  ])
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(sessions[0])
+  }, [currentUser])
 
   const createNewSession = useCallback(() => {
     const newSession: ChatSession = {
@@ -42,6 +62,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setSessions(prev => [...prev, newSession])
     setCurrentSession(newSession)
+    return newSession
   }, [sessions])
 
   const addMessage = useCallback((content: string, sender: 'user' | 'ai', isStreaming: boolean = false) => {
@@ -86,7 +107,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
             updatedMessages[lastMessageIndex] = {
               ...updatedMessages[lastMessageIndex],
-              content: content
+              content: content,
+              isStreaming: content.length > 0
             }
           }
           
@@ -105,7 +127,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (lastMessageIndex >= 0 && updatedMessages[lastMessageIndex].sender === 'ai') {
         updatedMessages[lastMessageIndex] = {
           ...updatedMessages[lastMessageIndex],
-          content: content
+          content: content,
+          isStreaming: content.length > 0
         }
       }
       
@@ -120,7 +143,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [sessions])
 
-  const deleteSession = useCallback((sessionId: string) => {
+  const deleteSession = useCallback(async (sessionId: string) => {
+    // Delete from Firestore if user is logged in
+    if (currentUser) {
+      try {
+        await deleteDoc(doc(db, 'chatSessions', sessionId))
+      } catch (error) {
+        console.error('Error deleting session:', error)
+      }
+    }
+
     setSessions(prev => {
       const updatedSessions = prev.filter(s => s.id !== sessionId)
       
@@ -135,7 +167,76 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return updatedSessions
     })
-  }, [currentSession, createNewSession])
+  }, [currentSession, createNewSession, currentUser])
+
+  const saveCurrentSession = useCallback(async () => {
+    if (!currentUser || !currentSession) return
+
+    try {
+      // Ensure the session has a title (use first message or default)
+      const sessionTitle = currentSession.messages.length > 0 
+        ? currentSession.messages[0].content.substring(0, 50) 
+        : 'New Chat'
+
+      // Save to Firestore
+      await setDoc(doc(db, 'chatSessions', currentSession.id), {
+        id: currentSession.id,
+        title: sessionTitle,
+        userId: currentUser.uid,
+        messages: currentSession.messages,
+        createdAt: currentSession.createdAt
+      })
+    } catch (error) {
+      console.error('Error saving session:', error)
+    }
+  }, [currentUser, currentSession])
+
+  const loadUserSessions = useCallback(async () => {
+    if (!currentUser) return
+
+    try {
+      // Query Firestore for user's chat sessions
+      const q = query(
+        collection(db, 'chatSessions'), 
+        where('userId', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      )
+      
+      const querySnapshot = await getDocs(q)
+      
+      const loadedSessions: ChatSession[] = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        title: doc.data().title,
+        messages: doc.data().messages,
+        createdAt: doc.data().createdAt
+      }))
+
+      // If no sessions exist, create a new one
+      if (loadedSessions.length === 0) {
+        const newSession = createNewSession()
+        await saveCurrentSession()
+      } else {
+        setSessions(loadedSessions)
+        setCurrentSession(loadedSessions[0])
+      }
+    } catch (error) {
+      console.error('Error loading sessions:', error)
+      // Fallback to creating a new session
+      createNewSession()
+    }
+  }, [currentUser, createNewSession, saveCurrentSession])
+
+  // Auto-save current session when messages change
+  useEffect(() => {
+    if (currentSession && currentUser) {
+      // Debounce save to avoid too frequent writes
+      const timer = setTimeout(() => {
+        saveCurrentSession()
+      }, 1000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [currentSession?.messages, currentUser, saveCurrentSession])
 
   return (
     <ChatContext.Provider value={{
@@ -145,7 +246,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addMessage,
       updateStreamingMessage,
       selectSession,
-      deleteSession
+      deleteSession,
+      saveCurrentSession,
+      loadUserSessions
     }}>
       {children}
     </ChatContext.Provider>
