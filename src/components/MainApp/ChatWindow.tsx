@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
+import { v4 as uuidv4 } from 'uuid'
 
 interface ChatWindowProps {
   theme: 'light' | 'dark'
@@ -10,17 +11,24 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { currentSession, addMessage, updateStreamingMessage } = useChat()
+  const { currentSession, createNewSession } = useChat()
   const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Ensure we have a session, create one if not
+  useEffect(() => {
+    if (!currentSession) {
+      createNewSession()
+    }
+  }, [currentSession, createNewSession])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [currentSession?.messages])
 
-  const handleStopGeneration = async () => {
+  const handleStopGeneration = useCallback(async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       setIsGenerating(false)
@@ -33,28 +41,41 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     } catch (error) {
       console.error("Error stopping generation:", error)
     }
-  }
+  }, [])
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
+    // Ensure we have a session
+    if (!currentSession) {
+      await createNewSession()
+      return
+    }
+
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
-      await addMessage(userInput, 'user')
+      
+      // Add user message
+      const userMessage = {
+        id: uuidv4(),
+        content: userInput,
+        sender: 'user' as const,
+        timestamp: Date.now(),
+      }
+
+      // Update current session with user message
+      const updatedSession = {
+        ...currentSession,
+        messages: [...currentSession.messages, userMessage]
+      }
+
       setInputMessage('')
       setIsGenerating(true)
 
-      // Add an initial AI message placeholder
-      await addMessage('', 'ai', true)
-
-      // Create a new abort controller for this request
-      const controller = new AbortController()
-      abortControllerRef.current = controller
-
       try {
         // Prepare context history for API
-        const contextHistory = currentSession?.messages.slice(-5).map(msg => ({
+        const contextHistory = currentSession.messages.slice(-5).map(msg => ({
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.content
-        })) || []
+        }))
 
         const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
@@ -64,56 +85,51 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           }),
           headers: { 
             "Content-Type": "application/json" 
-          },
-          signal: controller.signal
+          }
         })
 
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        let aiResponse = ''
+        const aiResponseText = await response.text()
 
-        const processStream = async () => {
-          if (!reader) return
-
-          const { done, value } = await reader.read()
-          
-          if (done) {
-            // Finalize AI message
-            await updateStreamingMessage(aiResponse)
-            setIsGenerating(false)
-            return
-          }
-
-          const chunk = decoder.decode(value, { stream: true })
-          aiResponse += chunk
-
-          // Update the last message with streaming content
-          await updateStreamingMessage(aiResponse)
-
-          await processStream()
+        // Add AI message
+        const aiMessage = {
+          id: uuidv4(),
+          content: aiResponseText,
+          sender: 'ai' as const,
+          timestamp: Date.now(),
         }
 
-        await processStream()
+        // Update session with AI message
+        const finalUpdatedSession = {
+          ...updatedSession,
+          messages: [...updatedSession.messages, aiMessage]
+        }
+
+        setIsGenerating(false)
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          console.log('Request was aborted')
-        } else {
-          console.error('Error during API call:', error)
-          await addMessage('Sorry, there was an error processing your request.', 'ai')
-        }
+        console.error('Error during API call:', error)
         setIsGenerating(false)
       }
     }
-  }
+  }, [inputMessage, isGenerating, currentSession, createNewSession])
 
-  const handleCopyMessage = (message: string) => {
+  const handleCopyMessage = useCallback((message: string) => {
     navigator.clipboard.writeText(message)
-  }
+  }, [])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputMessage(e.target.value)
+  }, [])
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSendMessage()
+    }
+  }, [handleSendMessage])
 
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {currentSession?.messages.map((message, index) => (
+        {currentSession?.messages.map((message) => (
           <div 
             key={message.id} 
             className={`
@@ -177,8 +193,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
         <input 
           type="text"
           value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+          onChange={handleInputChange}
+          onKeyPress={handleKeyPress}
           placeholder="Type your message..."
           disabled={isGenerating}
           className="flex-1 p-2 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 disabled:opacity-50"
