@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Copy, XCircle, User, Bot } from 'lucide-react'
+import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
 
@@ -38,8 +38,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const handleSendMessage = async () => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
-      
-      // Add user message first
       addMessage(userInput, 'user')
       setInputMessage('')
       setIsGenerating(true)
@@ -86,13 +84,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
 
         await processStream()
       } catch (error) {
-        console.error('Full Error During Message Sending:', error)
-        
-        // Add an error message to the chat
-        addMessage('Sorry, there was an error processing your request.', 'ai')
-        
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          console.log('Request was aborted')
+        } else {
+          console.error('Error during API call:', error)
+          addMessage('Sorry, there was an error processing your request.', 'ai')
+        }
         setIsGenerating(false)
-        setInputMessage(userInput) // Restore the input message
       }
     }
   }
@@ -104,9 +102,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {(currentSession?.messages || []).map((message, index) => (
+        {currentSession?.messages.map((message, index) => (
           <div 
-            key={message.id || index} 
+            key={message.id} 
             className={`
               flex items-start space-x-3 
               ${message.sender === 'user' ? 'justify-end' : 'justify-start'}
