@@ -45,10 +45,7 @@ const MainAppPage: React.FC = () => {
         `}
       >
         <div className="flex h-screen">
-          <Sidebar 
-            theme={theme} 
-            toggleTheme={toggleTheme} 
-          />
+          <Sidebar />
           <ChatWindow theme={theme} />
         </div>
       </div>
