@@ -10,7 +10,7 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { currentSession, addMessage, updateStreamingMessage } = useChat()
+  const { currentSession, addMessage, updateStreamingMessage, createNewSession } = useChat()
   const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -39,10 +39,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
       
-      // Log the current session state before adding message
-      console.log('Current Session Before Adding Message:', currentSession)
-      
       try {
+        // Ensure we have a valid current session
+        if (!currentSession) {
+          await createNewSession()
+        }
+
         // Add user message first
         await addMessage(userInput, 'user')
         setInputMessage('')
@@ -57,7 +59,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
 
         const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
-          body: new URLSearchParams({ user_input: userInput }),
+          body: new URLSearchParams({ 
+            user_input: userInput,
+            session_id: currentSession?.id || '' // Pass session ID to maintain context
+          }),
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           signal: controller.signal
         })
@@ -110,7 +115,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
         {/* Debug information */}
         {!currentSession && (
           <div className="text-red-500">
-            No current session available. Please create a new chat.
+            No current session available. Creating a new session...
           </div>
         )}
 

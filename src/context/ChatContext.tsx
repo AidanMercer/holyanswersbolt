@@ -9,27 +9,19 @@ import {
   getDocs, 
   updateDoc,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  limit
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
 import { ChatSession, ChatMessage } from '../types/ChatTypes'
-
-// Create a default empty session
-const DEFAULT_SESSION: ChatSession = {
-  id: '',
-  title: 'New Chat',
-  messages: [],
-  createdAt: Date.now(),
-  userId: ''
-}
 
 interface ChatContextType {
   currentSession: ChatSession | null
   sessions: ChatSession[]
   addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => Promise<void>
   updateStreamingMessage: (content: string) => Promise<void>
-  createNewSession: () => Promise<void>
+  createNewSession: () => Promise<ChatSession>
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => Promise<void>
   isLoading: boolean
@@ -40,7 +32,7 @@ const ChatContext = createContext<ChatContextType>({
   sessions: [],
   addMessage: async () => {},
   updateStreamingMessage: async () => {},
-  createNewSession: async () => {},
+  createNewSession: async () => ({ id: '', title: '', messages: [], createdAt: 0, userId: '' }),
   selectSession: () => {},
   deleteSession: async () => {},
   isLoading: true
@@ -67,11 +59,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userSessionsQuery = query(
       sessionsRef, 
       where('userId', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(5)  // Limit to prevent excessive sessions
     )
 
     // Set up real-time listener
-    const unsubscribe = onSnapshot(userSessionsQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(userSessionsQuery, async (snapshot) => {
       const fetchedSessions = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -79,13 +72,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('Fetched Sessions:', fetchedSessions)
 
-      setSessions(fetchedSessions)
+      // Remove duplicate or empty sessions
+      const uniqueSessions = fetchedSessions.filter((session, index, self) => 
+        index === self.findIndex((t) => t.id === session.id && t.messages.length > 0)
+      )
 
-      // If no current session is set, set the first session or create a new one
-      if (fetchedSessions.length > 0 && !currentSession) {
-        setCurrentSession(fetchedSessions[0])
-      } else if (fetchedSessions.length === 0) {
-        createNewSession()
+      setSessions(uniqueSessions)
+
+      // If no current session is set, create a new one or select the first
+      if (!currentSession) {
+        if (uniqueSessions.length > 0) {
+          setCurrentSession(uniqueSessions[0])
+        } else {
+          const newSession = await createNewSession()
+          setCurrentSession(newSession)
+        }
       }
 
       setIsLoading(false)
@@ -99,7 +100,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser])
 
   const createNewSession = useCallback(async () => {
-    if (!currentUser) return
+    if (!currentUser) throw new Error('No current user')
 
     const newSession: Omit<ChatSession, 'id'> = {
       title: 'New Chat',
@@ -118,10 +119,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Update local state
-      setSessions(prevSessions => [fullNewSession, ...prevSessions])
-      setCurrentSession(fullNewSession)
+      setSessions(prevSessions => {
+        // Remove any existing empty sessions
+        const filteredSessions = prevSessions.filter(s => s.messages.length > 0)
+        return [fullNewSession, ...filteredSessions]
+      })
+
+      return fullNewSession
     } catch (error) {
       console.error('Error creating new session:', error)
+      throw error
     }
   }, [currentUser])
 
