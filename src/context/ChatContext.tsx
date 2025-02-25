@@ -27,8 +27,8 @@ const DEFAULT_SESSION: ChatSession = {
 interface ChatContextType {
   currentSession: ChatSession | null
   sessions: ChatSession[]
-  addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
-  updateStreamingMessage: (content: string) => void
+  addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => Promise<void>
+  updateStreamingMessage: (content: string) => Promise<void>
   createNewSession: () => Promise<void>
   selectSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => Promise<void>
@@ -38,8 +38,8 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType>({
   currentSession: null,
   sessions: [],
-  addMessage: () => {},
-  updateStreamingMessage: () => {},
+  addMessage: async () => {},
+  updateStreamingMessage: async () => {},
   createNewSession: async () => {},
   selectSession: () => {},
   deleteSession: async () => {},
@@ -76,6 +76,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: doc.id,
         ...doc.data()
       } as ChatSession))
+
+      console.log('Fetched Sessions:', fetchedSessions)
 
       setSessions(fetchedSessions)
 
@@ -151,7 +153,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentSession, sessions, currentUser])
 
   const addMessage = useCallback(async (content: string, sender: 'user' | 'ai', isStreaming = false) => {
-    if (!currentSession || !currentUser) return
+    if (!currentSession || !currentUser) {
+      console.error('Cannot add message: No current session or user')
+      return
+    }
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -162,6 +167,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionId: currentSession.id
     }
 
+    console.log('Adding Message:', newMessage)
+
     try {
       // Update the session in Firestore
       const sessionRef = doc(db, 'chatSessions', currentSession.id)
@@ -170,17 +177,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
 
       // Optimistically update local state
-      setCurrentSession(prev => prev ? {
-        ...prev,
-        messages: [...prev.messages, newMessage]
-      } : null)
+      setCurrentSession(prev => {
+        if (!prev) return null
+        const updatedMessages = [...prev.messages, newMessage]
+        console.log('Updated Messages:', updatedMessages)
+        return {
+          ...prev,
+          messages: updatedMessages
+        }
+      })
     } catch (error) {
       console.error('Error adding message:', error)
     }
   }, [currentSession, currentUser])
 
   const updateStreamingMessage = useCallback(async (content: string) => {
-    if (!currentSession || !currentUser) return
+    if (!currentSession || !currentUser) {
+      console.error('Cannot update streaming message: No current session or user')
+      return
+    }
 
     try {
       // Create a copy of messages
@@ -195,15 +210,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      console.log('Updating Streaming Message:', updatedMessages)
+
       // Update Firestore
       const sessionRef = doc(db, 'chatSessions', currentSession.id)
       await updateDoc(sessionRef, { messages: updatedMessages })
 
       // Update local state
-      setCurrentSession(prev => prev ? {
-        ...prev,
-        messages: updatedMessages
-      } : null)
+      setCurrentSession(prev => {
+        if (!prev) return null
+        return {
+          ...prev,
+          messages: updatedMessages
+        }
+      })
     } catch (error) {
       console.error('Error updating streaming message:', error)
     }

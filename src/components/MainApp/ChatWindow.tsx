@@ -38,18 +38,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const handleSendMessage = async () => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
-      addMessage(userInput, 'user')
-      setInputMessage('')
-      setIsGenerating(true)
-
-      // Add an initial AI message placeholder
-      addMessage('', 'ai', true)
-
-      // Create a new abort controller for this request
-      const controller = new AbortController()
-      abortControllerRef.current = controller
-
+      
+      // Log the current session state before adding message
+      console.log('Current Session Before Adding Message:', currentSession)
+      
       try {
+        // Add user message first
+        await addMessage(userInput, 'user')
+        setInputMessage('')
+        setIsGenerating(true)
+
+        // Add an initial AI message placeholder
+        await addMessage('', 'ai', true)
+
+        // Create a new abort controller for this request
+        const controller = new AbortController()
+        abortControllerRef.current = controller
+
         const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
           body: new URLSearchParams({ user_input: userInput }),
@@ -68,7 +73,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           
           if (done) {
             // Finalize AI message
-            updateStreamingMessage(aiResponse)
+            await updateStreamingMessage(aiResponse)
             setIsGenerating(false)
             return
           }
@@ -77,20 +82,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           aiResponse += chunk
 
           // Update the last message with streaming content
-          updateStreamingMessage(aiResponse)
+          await updateStreamingMessage(aiResponse)
 
           await processStream()
         }
 
         await processStream()
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          console.log('Request was aborted')
-        } else {
-          console.error('Error during API call:', error)
-          addMessage('Sorry, there was an error processing your request.', 'ai')
-        }
+        console.error('Full Error During Message Sending:', error)
+        
+        // Add an error message to the chat
+        await addMessage('Sorry, there was an error processing your request.', 'ai')
+        
         setIsGenerating(false)
+        setInputMessage(userInput) // Restore the input message
       }
     }
   }
@@ -102,6 +107,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
+        {/* Debug information */}
+        {!currentSession && (
+          <div className="text-red-500">
+            No current session available. Please create a new chat.
+          </div>
+        )}
+
         {/* Add a null check and provide a default empty array */}
         {(currentSession?.messages || []).map((message, index) => (
           <div 
