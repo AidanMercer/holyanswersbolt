@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Copy, Check, XCircle, User, Bot } from 'lucide-react'
+import { Send, Copy, XCircle, User, Bot } from 'lucide-react'
 import { useChat } from '../../context/ChatContext'
 import { useAuth } from '../../context/AuthContext'
 
@@ -10,7 +10,7 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const { currentSession, addMessage, updateStreamingMessage, createNewSession } = useChat()
+  const { currentSession, addMessage, updateStreamingMessage } = useChat()
   const { currentUser } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -39,30 +39,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     if (inputMessage.trim() && !isGenerating) {
       const userInput = inputMessage.trim()
       
+      // Add user message first
+      addMessage(userInput, 'user')
+      setInputMessage('')
+      setIsGenerating(true)
+
+      // Add an initial AI message placeholder
+      addMessage('', 'ai', true)
+
+      // Create a new abort controller for this request
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+
       try {
-        // Ensure we have a valid current session
-        if (!currentSession) {
-          await createNewSession()
-        }
-
-        // Add user message first
-        await addMessage(userInput, 'user')
-        setInputMessage('')
-        setIsGenerating(true)
-
-        // Add an initial AI message placeholder
-        await addMessage('', 'ai', true)
-
-        // Create a new abort controller for this request
-        const controller = new AbortController()
-        abortControllerRef.current = controller
-
         const response = await fetch("https://holyanswers-155523642474.us-central1.run.app", {
           method: "POST",
-          body: new URLSearchParams({ 
-            user_input: userInput,
-            session_id: currentSession?.id || '' // Pass session ID to maintain context
-          }),
+          body: new URLSearchParams({ user_input: userInput }),
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           signal: controller.signal
         })
@@ -78,7 +70,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           
           if (done) {
             // Finalize AI message
-            await updateStreamingMessage(aiResponse)
+            updateStreamingMessage(aiResponse)
             setIsGenerating(false)
             return
           }
@@ -87,7 +79,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
           aiResponse += chunk
 
           // Update the last message with streaming content
-          await updateStreamingMessage(aiResponse)
+          updateStreamingMessage(aiResponse)
 
           await processStream()
         }
@@ -97,7 +89,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
         console.error('Full Error During Message Sending:', error)
         
         // Add an error message to the chat
-        await addMessage('Sorry, there was an error processing your request.', 'ai')
+        addMessage('Sorry, there was an error processing your request.', 'ai')
         
         setIsGenerating(false)
         setInputMessage(userInput) // Restore the input message
@@ -112,14 +104,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {/* Debug information */}
-        {!currentSession && (
-          <div className="text-red-500">
-            No current session available. Creating a new session...
-          </div>
-        )}
-
-        {/* Add a null check and provide a default empty array */}
         {(currentSession?.messages || []).map((message, index) => (
           <div 
             key={message.id || index} 
