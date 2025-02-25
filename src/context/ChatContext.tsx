@@ -25,31 +25,62 @@ const DEFAULT_SESSION: ChatSession = {
 
 interface ChatContextType {
   currentSession: ChatSession | null
+  sessions: ChatSession[]
   addMessage: (content: string, sender: 'user' | 'ai', isStreaming?: boolean) => void
   updateStreamingMessage: (content: string) => void
-  // Add other methods as needed
+  createNewSession: () => void
+  selectSession: (sessionId: string) => void
+  deleteSession: (sessionId: string) => void
 }
 
 const ChatContext = createContext<ChatContextType>({
   currentSession: null,
+  sessions: [],
   addMessage: () => {},
-  updateStreamingMessage: () => {}
+  updateStreamingMessage: () => {},
+  createNewSession: () => {},
+  selectSession: () => {},
+  deleteSession: () => {}
 })
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(DEFAULT_SESSION)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
   const { currentUser } = useAuth()
+
+  const createNewSession = useCallback(() => {
+    const newSession: ChatSession = {
+      id: Date.now().toString(),
+      title: 'New Chat',
+      messages: [],
+      createdAt: Date.now(),
+      userId: currentUser?.uid || ''
+    }
+
+    setSessions(prevSessions => [...prevSessions, newSession])
+    setCurrentSession(newSession)
+  }, [currentUser])
+
+  const selectSession = useCallback((sessionId: string) => {
+    const selectedSession = sessions.find(session => session.id === sessionId)
+    if (selectedSession) {
+      setCurrentSession(selectedSession)
+    }
+  }, [sessions])
+
+  const deleteSession = useCallback((sessionId: string) => {
+    setSessions(prevSessions => prevSessions.filter(session => session.id !== sessionId))
+    
+    // If the deleted session was the current session, reset to default or first session
+    if (currentSession?.id === sessionId) {
+      const remainingSessions = sessions.filter(session => session.id !== sessionId)
+      setCurrentSession(remainingSessions.length > 0 ? remainingSessions[0] : DEFAULT_SESSION)
+    }
+  }, [currentSession, sessions])
 
   const addMessage = useCallback((content: string, sender: 'user' | 'ai', isStreaming = false) => {
     if (!currentSession) {
-      // Initialize a new session if none exists
-      setCurrentSession({
-        id: Date.now().toString(),
-        title: 'New Chat',
-        messages: [],
-        createdAt: Date.now(),
-        userId: currentUser?.uid || ''
-      })
+      createNewSession()
     }
 
     const newMessage: ChatMessage = {
@@ -65,7 +96,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...prev,
       messages: [...prev.messages, newMessage]
     } : null)
-  }, [currentSession, currentUser])
+
+    // Update the sessions list
+    setSessions(prevSessions => 
+      prevSessions.map(session => 
+        session.id === currentSession?.id 
+          ? { ...session, messages: [...(session.messages || []), newMessage] } 
+          : session
+      )
+    )
+  }, [currentSession, createNewSession])
 
   const updateStreamingMessage = useCallback((content: string) => {
     if (!currentSession) return
@@ -89,13 +129,33 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         messages: updatedMessages
       }
     })
+
+    // Update the sessions list
+    setSessions(prevSessions => 
+      prevSessions.map(session => 
+        session.id === currentSession.id 
+          ? { 
+              ...session, 
+              messages: session.messages.map((msg, index) => 
+                index === session.messages.length - 1 
+                  ? { ...msg, content, isStreaming: content.length > 0 } 
+                  : msg
+              ) 
+            } 
+          : session
+      )
+    )
   }, [currentSession])
 
   return (
     <ChatContext.Provider value={{ 
       currentSession, 
+      sessions,
       addMessage, 
-      updateStreamingMessage 
+      updateStreamingMessage,
+      createNewSession,
+      selectSession,
+      deleteSession
     }}>
       {children}
     </ChatContext.Provider>
