@@ -102,9 +102,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
   return (
     <div className="flex-1 bg-white dark:bg-gray-900 p-4 flex flex-col">
       <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4">
-        {currentSession?.messages.map((message, index) => (
+        {/* Add a null check and provide a default empty array */}
+        {(currentSession?.messages || []).map((message, index) => (
           <div 
-            key={message.id} 
+            key={message.id || index} 
             className={`
               flex items-start space-x-3 
               ${message.sender === 'user' ? 'justify-end' : 'justify-start'}

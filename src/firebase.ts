@@ -19,13 +19,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
-const firestore = getFirestore(app)
+const db = getFirestore(app)
 const googleProvider = new GoogleAuthProvider()
 
 export { 
   app, 
   auth, 
-  firestore,
+  db,  // Explicitly export db
   googleProvider, 
   signInWithPopup,
   firebaseSignOut as signOut
