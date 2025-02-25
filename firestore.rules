@@ -1,28 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users full access to their own data
-    match /chatSessions/{sessionId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    // Allow authenticated users to create and read their own chat history
+    match /chatHistory/{docId} {
       allow create: if request.auth != null;
-    }
-
-    match /messages/{messageId} {
-      allow read, write: if request.auth != null && 
-        exists(/databases/$(database)/documents/chatSessions/$(resource.data.sessionId)) && 
-        get(/databases/$(database)/documents/chatSessions/$(resource.data.sessionId)).data.userId == request.auth.uid;
-      allow create: if request.auth != null;
-    }
-
-    // Ensure users can read their own documents during creation
-    match /chatSessions/{sessionId} {
-      allow read: if request.auth != null && request.auth.uid == request.resource.data.userId;
-    }
-
-    match /messages/{messageId} {
-      allow read: if request.auth != null && 
-        exists(/databases/$(database)/documents/chatSessions/$(request.resource.data.sessionId)) && 
-        get(/databases/$(database)/documents/chatSessions/$(request.resource.data.sessionId)).data.userId == request.auth.uid;
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
 }
