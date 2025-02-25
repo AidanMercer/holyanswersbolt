@@ -7,7 +7,8 @@ interface ChatWindowProps {
   theme: 'light' | 'dark'
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
+// Ensure this is a default export
+export default function ChatWindow({ theme }: ChatWindowProps) {
   const [inputMessage, setInputMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const { currentSession, addMessage, updateStreamingMessage } = useChat()
@@ -187,5 +188,3 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ theme }) => {
     </div>
   )
 }
-
-export default ChatWindow
