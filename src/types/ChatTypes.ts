@@ -4,6 +4,7 @@ export interface ChatMessage {
   sender: 'user' | 'ai'
   timestamp: number
   isStreaming?: boolean
+  sessionId: string
 }
 
 export interface ChatSession {
@@ -11,4 +12,5 @@ export interface ChatSession {
   title: string
   messages: ChatMessage[]
   createdAt: number
+  userId: string
 }
