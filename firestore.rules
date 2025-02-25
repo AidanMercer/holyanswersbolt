@@ -13,5 +13,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/chatSessions/$(resource.data.sessionId)).data.userId == request.auth.uid;
       allow create: if request.auth != null;
     }
+
+    // Ensure users can read their own documents during creation
+    match /chatSessions/{sessionId} {
+      allow read: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /messages/{messageId} {
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/chatSessions/$(request.resource.data.sessionId)) && 
+        get(/databases/$(database)/documents/chatSessions/$(request.resource.data.sessionId)).data.userId == request.auth.uid;
+    }
   }
 }
